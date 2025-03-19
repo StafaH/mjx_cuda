@@ -1,0 +1,7 @@
+# Vscode files
+.vscode/
+
+# Build and old files
+[Bb]uild/
+[Oo]ld/
+

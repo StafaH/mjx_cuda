@@ -17,6 +17,8 @@ target_include_directories(mjx_cuda PUBLIC
 
 set_target_properties(mjx_cuda PROPERTIES
     CUDA_SEPARABLE_COMPILATION ON
+    CUDA_STANDARD 17
+    CUDA_STANDARD_REQUIRED ON
 )
 
 target_compile_features(mjx_cuda PUBLIC
