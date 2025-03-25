@@ -4,12 +4,18 @@
 #include <cstdlib>
 #include <iostream>
 #include <cuda_runtime_api.h>
+#include <curand_kernel.h>
 #include <mujoco/mujoco.h>
 
 #include "math.h"
 #include "util.h"
 #include "io.h"
 #include "types.h"
+
+void LaunchNoiseKernel(
+    unsigned int batch_size,
+    CudaModel* cm,
+    CudaData* cd);
 
 void LaunchKinematicsKernel(
     unsigned int batch_size,
@@ -44,9 +50,9 @@ __global__ void LevelKernel(
     const float* jnt_axis,
     const float* jnt_pos,
     const int* body_tree,
-    const float* qpos,
-    const float* mocap_pos,
-    const float* mocap_quat,
+    float* qpos,
+    float* mocap_pos,
+    float* mocap_quat,
     float* xanchor,
     float* xaxis,
     float* xmat,
@@ -78,3 +84,10 @@ __global__ void SiteLocalToGlobalKernel(
     const float* xquat,
     float* site_xpos,
     float* site_xmat);
+
+__global__ void NoiseInjectionKernel(
+    unsigned int n,
+    unsigned int nq,
+    float* qpos,
+    float noise_scale,
+    unsigned int seed);

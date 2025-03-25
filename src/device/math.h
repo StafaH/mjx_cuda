@@ -20,17 +20,48 @@ inline __device__ void MulQuat(float res[4], const float qa[4],
 // rotate vector by quaternion
 inline __device__ void RotVecQuat(float res[3], const float vec[3],
                                   const float quat[4]) {
-  // tmp = q_w * v + cross(q_xyz, v)
-  const float tmp[3] = {
-    quat[0] * vec[0] + quat[2] * vec[2] - quat[3] * vec[1],
-    quat[0] * vec[1] + quat[3] * vec[0] - quat[1] * vec[2],
-    quat[0] * vec[2] + quat[1] * vec[1] - quat[2] * vec[0]
+  // Extract scalar part and vector part from quaternion
+  const float s = quat[0];
+  const float u[3] = {quat[1], quat[2], quat[3]};
+  
+  // Calculate dot product of u and vec
+  const float u_dot_vec = u[0] * vec[0] + u[1] * vec[1] + u[2] * vec[2];
+  
+  // Calculate dot product of u with itself
+  const float u_dot_u = u[0] * u[0] + u[1] * u[1] + u[2] * u[2];
+  
+  // First term: 2.0 * (wp.dot(u, vec) * u)
+  const float term1[3] = {
+    2.0f * u_dot_vec * u[0],
+    2.0f * u_dot_vec * u[1],
+    2.0f * u_dot_vec * u[2]
   };
-
-  // res = v + 2 * cross(q_xyz, t)
-  res[0] = vec[0] + 2 * (quat[2] * tmp[2] - quat[3] * tmp[1]);
-  res[1] = vec[1] + 2 * (quat[3] * tmp[0] - quat[1] * tmp[2]);
-  res[2] = vec[2] + 2 * (quat[1] * tmp[1] - quat[2] * tmp[0]);
+  
+  // Second term: (s * s - wp.dot(u, u)) * vec
+  const float factor = s * s - u_dot_u;
+  const float term2[3] = {
+    factor * vec[0],
+    factor * vec[1],
+    factor * vec[2]
+  };
+  
+  // Third term: 2.0 * s * wp.cross(u, vec)
+  const float cross[3] = {
+    u[1] * vec[2] - u[2] * vec[1],
+    u[2] * vec[0] - u[0] * vec[2],
+    u[0] * vec[1] - u[1] * vec[0]
+  };
+  
+  const float term3[3] = {
+    2.0f * s * cross[0],
+    2.0f * s * cross[1],
+    2.0f * s * cross[2]
+  };
+  
+  // Combine all terms: term1 + term2 + term3
+  res[0] = term1[0] + term2[0] + term3[0];
+  res[1] = term1[1] + term2[1] + term3[1];
+  res[2] = term1[2] + term2[2] + term3[2];
 }
 
 // convert axisAngle to quaternion

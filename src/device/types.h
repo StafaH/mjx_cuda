@@ -9,10 +9,11 @@ struct CudaModel {
   int ngeom;
   int nsite;
   int nmocap;
+  int nlevel;
 
   float* qpos0;
   int* body_tree;
-  int* body_leveladr;
+  int* body_treeadr;
   int* body_jntadr;
   int* body_jntnum;
   int* body_parentid;
@@ -32,8 +33,8 @@ struct CudaModel {
   float* site_pos;
   float* site_quat;
 
-  CudaModel() : nq(0), njnt(0), nbody(0), ngeom(0), nsite(0), nmocap(0),
-                qpos0(nullptr), body_tree(nullptr), body_leveladr(nullptr), body_jntadr(nullptr), body_jntnum(nullptr),
+  CudaModel() : nq(0), njnt(0), nbody(0), ngeom(0), nsite(0), nmocap(0), nlevel(0),
+                qpos0(nullptr), body_tree(nullptr), body_treeadr(nullptr), body_jntadr(nullptr), body_jntnum(nullptr),
                 body_parentid(nullptr), body_mocapid(nullptr), body_pos(nullptr),
                 body_quat(nullptr), body_ipos(nullptr), body_iquat(nullptr),
                 jnt_type(nullptr), jnt_qposadr(nullptr), jnt_axis(nullptr),
