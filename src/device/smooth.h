@@ -16,14 +16,20 @@ void LaunchKinematicsKernel(
     CudaModel* cm,
     CudaData* cd);
 
-__global__ void KinematicsKernel(
+__global__ void RootKernel(
     unsigned int n,
+    float* xpos,
+    float* xquat,
+    float* xipos,
+    float* xmat,
+    float* ximat);
+
+__global__ void LevelKernel(
+    unsigned int n,
+    unsigned int leveladr,
     unsigned int nq,
     unsigned int njnt,
     unsigned int nbody,
-    unsigned int ngeom,
-    unsigned int nsite,
-    unsigned int nmocap,
     const float* qpos0,
     const int* body_jntadr,
     const int* body_jntnum,
@@ -31,10 +37,13 @@ __global__ void KinematicsKernel(
     const int* body_mocapid,
     const float* body_pos,
     const float* body_quat,
+    const float* body_ipos,
+    const float* body_iquat,
     const int* jnt_type,
     const int* jnt_qposadr,
     const float* jnt_axis,
     const float* jnt_pos,
+    const int* body_tree,
     const float* qpos,
     const float* mocap_pos,
     const float* mocap_quat,
@@ -45,3 +54,27 @@ __global__ void KinematicsKernel(
     float* xquat,
     float* xipos,
     float* ximat);
+
+__global__ void GeomLocalToGlobalKernel(
+    unsigned int n,
+    unsigned int nbody,
+    unsigned int ngeom,
+    const int* geom_bodyid,
+    const float* geom_pos,
+    const float* geom_quat,
+    const float* xpos,
+    const float* xquat,
+    float* geom_xpos,
+    float* geom_xmat);
+
+__global__ void SiteLocalToGlobalKernel(
+    unsigned int n,
+    unsigned int nbody,
+    unsigned int nsite,
+    const int* site_bodyid,
+    const float* site_pos,
+    const float* site_quat,
+    const float* xpos,
+    const float* xquat,
+    float* site_xpos,
+    float* site_xmat);

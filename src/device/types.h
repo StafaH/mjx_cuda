@@ -11,6 +11,8 @@ struct CudaModel {
   int nmocap;
 
   float* qpos0;
+  int* body_tree;
+  int* body_leveladr;
   int* body_jntadr;
   int* body_jntnum;
   int* body_parentid;
@@ -23,18 +25,21 @@ struct CudaModel {
   int* jnt_qposadr;
   float* jnt_axis;
   float* jnt_pos;
+  int* geom_bodyid;
   float* geom_pos;
   float* geom_quat;
+  int* site_bodyid;
   float* site_pos;
   float* site_quat;
 
   CudaModel() : nq(0), njnt(0), nbody(0), ngeom(0), nsite(0), nmocap(0),
-                qpos0(nullptr), body_jntadr(nullptr), body_jntnum(nullptr),
+                qpos0(nullptr), body_tree(nullptr), body_leveladr(nullptr), body_jntadr(nullptr), body_jntnum(nullptr),
                 body_parentid(nullptr), body_mocapid(nullptr), body_pos(nullptr),
                 body_quat(nullptr), body_ipos(nullptr), body_iquat(nullptr),
                 jnt_type(nullptr), jnt_qposadr(nullptr), jnt_axis(nullptr),
-                jnt_pos(nullptr), geom_pos(nullptr), geom_quat(nullptr),
-                site_pos(nullptr), site_quat(nullptr) {}
+                jnt_pos(nullptr), geom_bodyid(nullptr), geom_pos(nullptr),
+                geom_quat(nullptr), site_bodyid(nullptr), site_pos(nullptr),
+                site_quat(nullptr) {}
 
   ~CudaModel() {
     if (qpos0) cudaFree(qpos0);
@@ -50,8 +55,10 @@ struct CudaModel {
     if (jnt_qposadr) cudaFree(jnt_qposadr);
     if (jnt_axis) cudaFree(jnt_axis);
     if (jnt_pos) cudaFree(jnt_pos);
+    if (geom_bodyid) cudaFree(geom_bodyid);
     if (geom_pos) cudaFree(geom_pos);
     if (geom_quat) cudaFree(geom_quat);
+    if (site_bodyid) cudaFree(site_bodyid);
     if (site_pos) cudaFree(site_pos);
     if (site_quat) cudaFree(site_quat);
   }

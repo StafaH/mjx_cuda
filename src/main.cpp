@@ -9,6 +9,16 @@
 #include "device/io.h"
 #include "device/smooth.h"
 
+#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
+inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
+{
+   if (code != cudaSuccess) 
+   {
+      fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
+      if (abort) exit(code);
+   }
+}
+
 
 int main(int argc, char* argv[]) {
   if (argc < 2 || argc > 6) {
@@ -38,9 +48,7 @@ int main(int argc, char* argv[]) {
   CudaModel* cm = put_model(m);
   CudaData* cd = put_data(m, d, batch_size);
 
-  // Launch the kernel
-  dim3 blockSize(1024);
-  dim3 gridSize((batch_size * m->nq + blockSize.x - 1) / blockSize.x);
+  printf("Data and model transferred to GPU\n");
 
   // Create CUDA graph objects
   cudaGraph_t graph;
@@ -51,11 +59,16 @@ int main(int argc, char* argv[]) {
 
   LaunchKinematicsKernel(batch_size, cm, cd);
 
+  gpuErrchk( cudaPeekAtLastError() );
+  gpuErrchk( cudaDeviceSynchronize() );
+
   cudaStreamEndCapture(cudaStreamDefault, &graph);
   cudaGraphInstantiate(&graphExec, graph, NULL, NULL, 0);
 
   // Warmup run
   cudaGraphLaunch(graphExec, cudaStreamDefault);
+
+  printf("Warmup run completed\n");
 
   // Test against CPU Mujoco
   m->opt.jacobian = mjJAC_SPARSE;
