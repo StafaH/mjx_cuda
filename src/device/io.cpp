@@ -157,42 +157,55 @@ CudaData* put_data(const mjModel* m, const mjData* d, int nworlds) {
     std::vector<float> site_xpos_float(nworlds * m->nsite * 3);
     std::vector<float> site_xmat_float(nworlds * m->nsite * 9);
 
-    // Convert double arrays to float
-    for (int i = 0; i < nworlds * m->nq; i++) {
-        qpos_float[i] = static_cast<float>(d->qpos[i]);
-    }
-    for (int i = 0; i < nworlds * m->nmocap * 3; i++) {
-        mocap_pos_float[i] = static_cast<float>(d->mocap_pos[i]);
-    }
-    for (int i = 0; i < nworlds * m->nmocap * 4; i++) {
-        mocap_quat_float[i] = static_cast<float>(d->mocap_quat[i]);
-    }
-    for (int i = 0; i < nworlds * m->njnt * 3; i++) {
-        xanchor_float[i] = static_cast<float>(d->xanchor[i]);
-        xaxis_float[i] = static_cast<float>(d->xaxis[i]);
-    }
-    for (int i = 0; i < nworlds * m->nbody * 9; i++) {
-        xmat_float[i] = static_cast<float>(d->xmat[i]);
-        ximat_float[i] = static_cast<float>(d->ximat[i]);
-    }
-    for (int i = 0; i < nworlds * m->nbody * 3; i++) {
-        xpos_float[i] = static_cast<float>(d->xpos[i]);
-        xipos_float[i] = static_cast<float>(d->xipos[i]);
-    }
-    for (int i = 0; i < nworlds * m->nbody * 4; i++) {
-        xquat_float[i] = static_cast<float>(d->xquat[i]);
-    }
-    for (int i = 0; i < nworlds * m->ngeom * 3; i++) {
-        geom_xpos_float[i] = static_cast<float>(d->geom_xpos[i]);
-    }
-    for (int i = 0; i < nworlds * m->ngeom * 9; i++) {
-        geom_xmat_float[i] = static_cast<float>(d->geom_xmat[i]);
-    }
-    for (int i = 0; i < nworlds * m->nsite * 3; i++) {
-        site_xpos_float[i] = static_cast<float>(d->site_xpos[i]);
-    }
-    for (int i = 0; i < nworlds * m->nsite * 9; i++) {
-        site_xmat_float[i] = static_cast<float>(d->site_xmat[i]);
+    // Convert and tile data across nworlds
+    for (int w = 0; w < nworlds; w++) {
+        // qpos
+        for (int i = 0; i < m->nq; i++) {
+            qpos_float[w * m->nq + i] = static_cast<float>(d->qpos[i]);
+        }
+        
+        // mocap data
+        for (int i = 0; i < m->nmocap * 3; i++) {
+            mocap_pos_float[w * m->nmocap * 3 + i] = static_cast<float>(d->mocap_pos[i]);
+        }
+        for (int i = 0; i < m->nmocap * 4; i++) {
+            mocap_quat_float[w * m->nmocap * 4 + i] = static_cast<float>(d->mocap_quat[i]);
+        }
+
+        // joint data
+        for (int i = 0; i < m->njnt * 3; i++) {
+            xanchor_float[w * m->njnt * 3 + i] = static_cast<float>(d->xanchor[i]);
+            xaxis_float[w * m->njnt * 3 + i] = static_cast<float>(d->xaxis[i]);
+        }
+
+        // body data
+        for (int i = 0; i < m->nbody * 9; i++) {
+            xmat_float[w * m->nbody * 9 + i] = static_cast<float>(d->xmat[i]);
+            ximat_float[w * m->nbody * 9 + i] = static_cast<float>(d->ximat[i]);
+        }
+        for (int i = 0; i < m->nbody * 3; i++) {
+            xpos_float[w * m->nbody * 3 + i] = static_cast<float>(d->xpos[i]);
+            xipos_float[w * m->nbody * 3 + i] = static_cast<float>(d->xipos[i]);
+        }
+        for (int i = 0; i < m->nbody * 4; i++) {
+            xquat_float[w * m->nbody * 4 + i] = static_cast<float>(d->xquat[i]);
+        }
+
+        // geom data
+        for (int i = 0; i < m->ngeom * 3; i++) {
+            geom_xpos_float[w * m->ngeom * 3 + i] = static_cast<float>(d->geom_xpos[i]);
+        }
+        for (int i = 0; i < m->ngeom * 9; i++) {
+            geom_xmat_float[w * m->ngeom * 9 + i] = static_cast<float>(d->geom_xmat[i]);
+        }
+
+        // site data
+        for (int i = 0; i < m->nsite * 3; i++) {
+            site_xpos_float[w * m->nsite * 3 + i] = static_cast<float>(d->site_xpos[i]);
+        }
+        for (int i = 0; i < m->nsite * 9; i++) {
+            site_xmat_float[w * m->nsite * 9 + i] = static_cast<float>(d->site_xmat[i]);
+        }
     }
 
     cudaMalloc(&cd->qpos, nworlds * m->nq * sizeof(float));
