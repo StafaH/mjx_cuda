@@ -6,15 +6,14 @@ void LaunchNoiseKernel(
     CudaModel* cm,
     CudaData* cd) {
 
-  // Add noise injection kernel to graph
   int threadsPerBlock = 256;
   int numBlocks = (batch_size + threadsPerBlock - 1) / threadsPerBlock;
   NoiseInjectionKernel<<<numBlocks, threadsPerBlock>>>(
       batch_size,
       cm->nq,
       cd->qpos,
-      0.01f,  // noise scale
-      0       // seed will be updated each iteration
+      0.01f,
+      0
   );
 }
 
@@ -24,11 +23,10 @@ void LaunchKinematicsKernel(
     CudaModel* cm,
     CudaData* cd) {
 
-  int threadsPerBlock = 16;
-  int numBlocks = (batch_size + threadsPerBlock - 1) / threadsPerBlock;
+  constexpr int threadsPerBlock = 256;
+  int batchBlocks = (batch_size + threadsPerBlock - 1) / threadsPerBlock;
 
-  // Launch root kernel
-  RootKernel<<<numBlocks, threadsPerBlock, 0, stream>>>(
+  RootKernel<<<batchBlocks, threadsPerBlock, 0, stream>>>(
       batch_size,
       cd->xpos,
       cd->xquat,
@@ -41,7 +39,8 @@ void LaunchKinematicsKernel(
     int end = (i == cm->nbody_treeadr - 1) ? cm->nbody : cm->body_treeadr[i + 1];
     int numBodiesInLevel = end - beg;
 
-    dim3 gridDim((batch_size + threadsPerBlock - 1) / threadsPerBlock, numBodiesInLevel);
+    dim3 gridDim(batchBlocks, numBodiesInLevel);
+    
     LevelKernel<<<gridDim, threadsPerBlock, 0, stream>>>(
         batch_size,
         beg,
@@ -74,9 +73,8 @@ void LaunchKinematicsKernel(
         cd->ximat);
   }
 
-  // Launch geometry kernel if needed
   if (cm->ngeom > 0) {
-    dim3 gridDim((batch_size + threadsPerBlock - 1) / threadsPerBlock, cm->ngeom);
+    dim3 gridDim(batchBlocks, cm->ngeom);
     GeomLocalToGlobalKernel<<<gridDim, threadsPerBlock, 0, stream>>>(
         batch_size,
         cm->nbody,
@@ -90,9 +88,8 @@ void LaunchKinematicsKernel(
         cd->geom_xmat);
   }
 
-  // Launch site kernel if needed
   if (cm->nsite > 0) {
-    dim3 gridDim((batch_size + threadsPerBlock - 1) / threadsPerBlock, cm->nsite);
+    dim3 gridDim(batchBlocks, cm->nsite);
     SiteLocalToGlobalKernel<<<gridDim, threadsPerBlock, 0, stream>>>(
         batch_size,
         cm->nbody,
@@ -120,23 +117,29 @@ __global__ void RootKernel(
     return;
   }
 
-  // batch index into data
-  xpos = xpos + tid * 3;
-  xquat = xquat + tid * 4;
-  xipos = xipos + tid * 3;
-  xmat = xmat + tid * 9;
-  ximat = ximat + tid * 9;
+  const unsigned int pos_offset = tid * 3;
+  const unsigned int quat_offset = tid * 4;
+  const unsigned int mat_offset = tid * 9;
+  
+  float* batch_xpos = xpos + pos_offset;
+  float* batch_xquat = xquat + quat_offset;
+  float* batch_xipos = xipos + pos_offset;
+  float* batch_xmat = xmat + mat_offset;
+  float* batch_ximat = ximat + mat_offset;
 
-  // set world position and orientation
-  Zero(xpos, 3);
-  Zero(xquat, 4);
-  Zero(xipos, 3);
-  Zero(xmat, 9);
-  Zero(ximat, 9);
-
-  xquat[0] = 1.0f;
-  xmat[0] = xmat[4] = xmat[8] = 1.0f;
-  ximat[0] = ximat[4] = ximat[8] = 1.0f;
+  batch_xpos[0] = batch_xpos[1] = batch_xpos[2] = 0.0f;
+  batch_xipos[0] = batch_xipos[1] = batch_xipos[2] = 0.0f;
+  
+  batch_xquat[0] = 1.0f;
+  batch_xquat[1] = batch_xquat[2] = batch_xquat[3] = 0.0f;
+  
+  batch_xmat[0] = batch_xmat[4] = batch_xmat[8] = 1.0f;
+  batch_xmat[1] = batch_xmat[2] = batch_xmat[3] = 0.0f;
+  batch_xmat[5] = batch_xmat[6] = batch_xmat[7] = 0.0f;
+  
+  batch_ximat[0] = batch_ximat[4] = batch_ximat[8] = 1.0f;
+  batch_ximat[1] = batch_ximat[2] = batch_ximat[3] = 0.0f;
+  batch_ximat[5] = batch_ximat[6] = batch_ximat[7] = 0.0f;
 }
 
 __global__ void LevelKernel(
@@ -172,120 +175,208 @@ __global__ void LevelKernel(
   unsigned int tid = blockIdx.x * blockDim.x + threadIdx.x;
   unsigned int nodeid = blockIdx.y;
 
-  if (tid >= n) {
-    return;
-  }
+  if (tid >= n) return;
 
-  // Get bodyid from body_tree
   int bodyid = body_tree[leveladr + nodeid];
-  int jntadr = body_jntadr[bodyid];
-  int jntnum = body_jntnum[bodyid];
-  float lxpos[3], lxquat[4];
-  Zero(lxpos, 3);
-  Zero(lxquat, 4);
-
-  // batch index into data
-  qpos = qpos + (tid * nq);
-  xanchor = xanchor + (tid * njnt * 3);
-  xaxis = xaxis + (tid * njnt * 3);
-  xmat = xmat + (tid * nbody * 9);
-  xpos = xpos + (tid * nbody * 3);
-  xquat = xquat + (tid * nbody * 4);
-  xipos = xipos + (tid * nbody * 3);
-  ximat = ximat + (tid * nbody * 9);
+  
+  const int jntadr = body_jntadr[bodyid];
+  const int jntnum = body_jntnum[bodyid];
+  
+  const unsigned int qpos_offset = tid * nq;
+  const unsigned int body_offset = tid * nbody;
+  const unsigned int jnt_offset = tid * njnt;
+  
+  float* batch_xanchor = xanchor + (jnt_offset * 3);
+  float* batch_xaxis = xaxis + (jnt_offset * 3);
+  float* batch_xmat = xmat + (body_offset * 9);
+  float* batch_xpos = xpos + (body_offset * 3);
+  float* batch_xquat = xquat + (body_offset * 4);
+  float* batch_xipos = xipos + (body_offset * 3);
+  float* batch_ximat = ximat + (body_offset * 9);
+  
+  float lxpos[3] = {0.0f, 0.0f, 0.0f};
+  float lxquat[4] = {0.0f, 0.0f, 0.0f, 0.0f};
 
   if (jntnum == 0) {
-    // no joints - apply fixed translation and rotation relative to parent
-    int pid = body_parentid[bodyid];
-    const float* bodypos = body_pos + 3 * bodyid;
-    const float* bodyquat = body_quat + 4 * bodyid;
-
-    MulMatVec3(lxpos, xmat + (9 * pid), bodypos);
-    AddTo(lxpos, xpos + (3 * pid), 3);
-    MulQuat(lxquat, xquat + (4 * pid), bodyquat);
-  } else if (jntnum == 1 && jnt_type[jntadr] == mjJNT_FREE) {
-    // free joint
-    int qadr = jnt_qposadr[jntadr];
-    Copy(lxpos, qpos + qadr, 3);
-    Copy(lxquat, qpos + qadr + 3, 4);
-    Normalize(lxquat, 4);
-
-    // assign xanchor and xaxis
-    Copy(xanchor + (3 * jntadr), lxpos, 3);
-    Copy(xaxis + (3 * jntadr), jnt_axis + (3 * jntadr), 3);
-  } else {
-    // regular or no joints
     int pid = body_parentid[bodyid];
     const float* bodypos = body_pos + (3 * bodyid);
     const float* bodyquat = body_quat + (4 * bodyid);
+    float* pid_xmat = batch_xmat + (9 * pid);
+    float* pid_xpos = batch_xpos + (3 * pid);
+    float* pid_xquat = batch_xquat + (4 * pid);
 
-    // apply fixed translation and rotation relative to parent
-    MulMatVec3(lxpos, xmat + (9 * pid), bodypos);
-    AddTo(lxpos, xpos + (3 * pid), 3);
-    MulQuat(lxquat, xquat + (4 * pid), bodyquat);
+    MulMatVec3(lxpos, pid_xmat, bodypos);
+    lxpos[0] += pid_xpos[0];
+    lxpos[1] += pid_xpos[1];
+    lxpos[2] += pid_xpos[2];
+    
+    MulQuat(lxquat, pid_xquat, bodyquat);
+  } 
+  else if (jntnum == 1 && jnt_type[jntadr] == mjJNT_FREE) {
+    // Free joint (direct set from qpos)
+    int qadr = jnt_qposadr[jntadr];
+    float* src_qpos = qpos + qpos_offset + qadr;
+    
+    lxpos[0] = src_qpos[0];
+    lxpos[1] = src_qpos[1];
+    lxpos[2] = src_qpos[2];
+    lxquat[0] = src_qpos[3];
+    lxquat[1] = src_qpos[4];
+    lxquat[2] = src_qpos[5];
+    lxquat[3] = src_qpos[6];
+    
+    float norm = sqrtf(lxquat[0]*lxquat[0] + lxquat[1]*lxquat[1] + 
+                      lxquat[2]*lxquat[2] + lxquat[3]*lxquat[3]);
+    float invNorm = 1.0f / norm;
+    lxquat[0] *= invNorm;
+    lxquat[1] *= invNorm;
+    lxquat[2] *= invNorm;
+    lxquat[3] *= invNorm;
 
-    // accumulate joints
+    float* jnt_anchor = batch_xanchor + (3 * jntadr);
+    float* jnt_ax = batch_xaxis + (3 * jntadr);
+    const float* joint_axis = jnt_axis + (3 * jntadr);
+    
+    jnt_anchor[0] = lxpos[0];
+    jnt_anchor[1] = lxpos[1];
+    jnt_anchor[2] = lxpos[2];
+    jnt_ax[0] = joint_axis[0];
+    jnt_ax[1] = joint_axis[1];
+    jnt_ax[2] = joint_axis[2];
+  } 
+  else {
+    int pid = body_parentid[bodyid];
+    const float* bodypos = body_pos + (3 * bodyid);
+    const float* bodyquat = body_quat + (4 * bodyid);
+    float* pid_xmat = batch_xmat + (9 * pid);
+    float* pid_xpos = batch_xpos + (3 * pid);
+    float* pid_xquat = batch_xquat + (4 * pid);
+
+    MulMatVec3(lxpos, pid_xmat, bodypos);
+    lxpos[0] += pid_xpos[0];
+    lxpos[1] += pid_xpos[1];
+    lxpos[2] += pid_xpos[2];
+    
+    MulQuat(lxquat, pid_xquat, bodyquat);
+
+    float* curr_qpos = qpos + qpos_offset;
+    
     for (int j = 0; j < jntnum; j++) {
       int jid = jntadr + j;
       int qadr = jnt_qposadr[jid];
       int jtype = jnt_type[jid];
-
-      // compute anchor in global frame using current state
+      
       float vec[3];
-      RotVecQuat(vec, jnt_pos + (3 * jid), lxquat);
-      AddTo(vec, lxpos, 3);
-      Copy(xanchor + (3 * jid), vec, 3);
+      const float* jnt_pos_ptr = jnt_pos + (3 * jid);
+      float* jnt_anchor = batch_xanchor + (3 * jid);
+      float* jnt_ax = batch_xaxis + (3 * jid);
+      const float* joint_axis = jnt_axis + (3 * jid);
+      
+      RotVecQuat(vec, jnt_pos_ptr, lxquat);
+      
+      jnt_anchor[0] = vec[0] + lxpos[0];
+      jnt_anchor[1] = vec[1] + lxpos[1];
+      jnt_anchor[2] = vec[2] + lxpos[2];
 
-      // compute axis in global frame
-      RotVecQuat(xaxis + (3 * jid), jnt_axis + (3 * jid), lxquat);
+      RotVecQuat(jnt_ax, joint_axis, lxquat);
 
-      // apply joint transformation
       switch (jtype) {
-        case mjJNT_SLIDE:
-          AddToScl(lxpos, xaxis + (3 * jid), qpos[qadr] - qpos0[qadr], 3);
+        case mjJNT_SLIDE: {
+          float qpos_diff = curr_qpos[qadr] - qpos0[qadr];
+          lxpos[0] += jnt_ax[0] * qpos_diff;
+          lxpos[1] += jnt_ax[1] * qpos_diff;
+          lxpos[2] += jnt_ax[2] * qpos_diff;
           break;
+        }
 
         case mjJNT_BALL: {
           float qloc[4];
-          Copy(qloc, qpos + qadr, 4);
-          MulQuat(lxquat, lxquat, qloc);
-          RotVecQuat(vec, jnt_pos + (3 * jid), lxquat);
-          Sub(vec, xanchor + (3 * jid), vec, 3);
-          Copy(lxpos, vec, 3);
+          qloc[0] = curr_qpos[qadr];
+          qloc[1] = curr_qpos[qadr+1];
+          qloc[2] = curr_qpos[qadr+2];
+          qloc[3] = curr_qpos[qadr+3];
+          
+          float new_quat[4];
+          MulQuat(new_quat, lxquat, qloc);
+          
+          lxquat[0] = new_quat[0];
+          lxquat[1] = new_quat[1];
+          lxquat[2] = new_quat[2];
+          lxquat[3] = new_quat[3];
+          
+          RotVecQuat(vec, jnt_pos_ptr, lxquat);
+          lxpos[0] = jnt_anchor[0] - vec[0];
+          lxpos[1] = jnt_anchor[1] - vec[1];
+          lxpos[2] = jnt_anchor[2] - vec[2];
           break;
         }
 
         case mjJNT_HINGE: {
+          float angle = curr_qpos[qadr] - qpos0[qadr];
           float qloc[4];
-          AxisAngle2Quat(qloc, jnt_axis + (3 * jid), qpos[qadr] - qpos0[qadr]);
-          MulQuat(lxquat, lxquat, qloc);
-          RotVecQuat(vec, jnt_pos + (3 * jid), lxquat);
-          Sub(vec, xanchor + (3 * jid), vec, 3);
-          Copy(lxpos, vec, 3);
+          
+          float s = sinf(angle * 0.5f);
+          qloc[0] = cosf(angle * 0.5f);
+          qloc[1] = joint_axis[0] * s;
+          qloc[2] = joint_axis[1] * s;
+          qloc[3] = joint_axis[2] * s;
+          
+          float new_quat[4];
+          MulQuat(new_quat, lxquat, qloc);
+          
+          lxquat[0] = new_quat[0];
+          lxquat[1] = new_quat[1];
+          lxquat[2] = new_quat[2];
+          lxquat[3] = new_quat[3];
+          
+          RotVecQuat(vec, jnt_pos_ptr, lxquat);
+          lxpos[0] = jnt_anchor[0] - vec[0];
+          lxpos[1] = jnt_anchor[1] - vec[1];
+          lxpos[2] = jnt_anchor[2] - vec[2];
           break;
         }
-
-        default:
-          break;
       }
     }
   }
 
-  // assign xquat and xpos, construct xmat
-  Normalize(lxquat, 4);
-  Copy(xquat + (4 * bodyid), lxquat, 4);
-  Copy(xpos + (3 * bodyid), lxpos, 3);
-  Quat2Mat(xmat + (9 * bodyid), lxquat);
+  float norm = sqrtf(lxquat[0]*lxquat[0] + lxquat[1]*lxquat[1] + 
+                     lxquat[2]*lxquat[2] + lxquat[3]*lxquat[3]);
+  float invNorm = 1.0f / norm;
+  lxquat[0] *= invNorm;
+  lxquat[1] *= invNorm;
+  lxquat[2] *= invNorm;
+  lxquat[3] *= invNorm;
 
-  // compute xipos and ximat
+  float* body_xquat = batch_xquat + (4 * bodyid);
+  float* body_xpos = batch_xpos + (3 * bodyid);
+  float* body_xmat = batch_xmat + (9 * bodyid);
+  
+  body_xquat[0] = lxquat[0];
+  body_xquat[1] = lxquat[1];
+  body_xquat[2] = lxquat[2];
+  body_xquat[3] = lxquat[3];
+  
+  body_xpos[0] = lxpos[0];
+  body_xpos[1] = lxpos[1];
+  body_xpos[2] = lxpos[2];
+  
+  Quat2Mat(body_xmat, lxquat);
+
   float vec[3];
-  RotVecQuat(vec, body_ipos + (3 * bodyid), lxquat);
-  AddTo(vec, lxpos, 3);
-  Copy(xipos + (3 * bodyid), vec, 3);
+  const float* body_ipos_ptr = body_ipos + (3 * bodyid);
+  float* body_xipos = batch_xipos + (3 * bodyid);
+  
+  RotVecQuat(vec, body_ipos_ptr, lxquat);
+  body_xipos[0] = vec[0] + lxpos[0];
+  body_xipos[1] = vec[1] + lxpos[1];
+  body_xipos[2] = vec[2] + lxpos[2];
 
   float quat[4];
-  MulQuat(quat, lxquat, body_iquat + (4 * bodyid));
-  Quat2Mat(ximat + (9 * bodyid), quat);
+  const float* body_iquat_ptr = body_iquat + (4 * bodyid);
+  float* body_ximat = batch_ximat + (9 * bodyid);
+  
+  MulQuat(quat, lxquat, body_iquat_ptr);
+  Quat2Mat(body_ximat, quat);
 }
 
 __global__ void GeomLocalToGlobalKernel(
@@ -301,25 +392,32 @@ __global__ void GeomLocalToGlobalKernel(
     float* geom_xmat) {
   unsigned int tid = blockIdx.x * blockDim.x + threadIdx.x;
 
-  if (tid >= n) {
-    return;
-  }
+  if (tid >= n) return;
 
-  // batch index into data
-  xpos = xpos + tid * nbody * 3;
-  xquat = xquat + tid * nbody * 4;
-  geom_xpos = geom_xpos + tid * ngeom * 3;
-  geom_xmat = geom_xmat + tid * ngeom * 9;
+  const unsigned int body_offset = tid * nbody;
+  const unsigned int geom_offset = tid * ngeom;
+  
+  const float* batch_xpos = xpos + body_offset * 3;
+  const float* batch_xquat = xquat + body_offset * 4;
+  float* batch_geom_xpos = geom_xpos + geom_offset * 3;
+  float* batch_geom_xmat = geom_xmat + geom_offset * 9;
 
   for (int i = 0; i < ngeom; i++) {
     int bodyid = geom_bodyid[i];
+    const float* body_xquat = batch_xquat + 4 * bodyid;
+    const float* body_xpos = batch_xpos + 3 * bodyid;
+    
     float vec[3];
-    RotVecQuat(vec, geom_pos + 3 * i, xquat + 4 * bodyid);
-    AddTo(geom_xpos + 3 * i, vec, 3);
+    RotVecQuat(vec, geom_pos + 3 * i, body_xquat);
+    
+    float* geom_xpos_i = batch_geom_xpos + 3 * i;
+    geom_xpos_i[0] = vec[0] + body_xpos[0];
+    geom_xpos_i[1] = vec[1] + body_xpos[1];
+    geom_xpos_i[2] = vec[2] + body_xpos[2];
 
     float quat[4];
-    MulQuat(quat, xquat + 4 * bodyid, geom_quat + 4 * i);
-    Quat2Mat(geom_xmat + 9 * i, quat);
+    MulQuat(quat, body_xquat, geom_quat + 4 * i);
+    Quat2Mat(batch_geom_xmat + 9 * i, quat);
   }
 }
 
@@ -336,25 +434,32 @@ __global__ void SiteLocalToGlobalKernel(
     float* site_xmat) {
   unsigned int tid = blockIdx.x * blockDim.x + threadIdx.x;
 
-  if (tid >= n) {
-    return;
-  }
+  if (tid >= n) return;
 
-  // batch index into data
-  xpos = xpos + tid * nbody * 3;
-  xquat = xquat + tid * nbody * 4;
-  site_xpos = site_xpos + tid * nsite * 3;
-  site_xmat = site_xmat + tid * nsite * 9;
+  const unsigned int body_offset = tid * nbody;
+  const unsigned int site_offset = tid * nsite;
+  
+  const float* batch_xpos = xpos + body_offset * 3;
+  const float* batch_xquat = xquat + body_offset * 4;
+  float* batch_site_xpos = site_xpos + site_offset * 3;
+  float* batch_site_xmat = site_xmat + site_offset * 9;
 
   for (int i = 0; i < nsite; i++) {
     int bodyid = site_bodyid[i];
+    const float* body_xquat = batch_xquat + 4 * bodyid;
+    const float* body_xpos = batch_xpos + 3 * bodyid;
+    
     float vec[3];
-    RotVecQuat(vec, site_pos + 3 * i, xquat + 4 * bodyid);
-    AddTo(site_xpos + 3 * i, vec, 3);
+    RotVecQuat(vec, site_pos + 3 * i, body_xquat);
+    
+    float* site_xpos_i = batch_site_xpos + 3 * i;
+    site_xpos_i[0] = vec[0] + body_xpos[0];
+    site_xpos_i[1] = vec[1] + body_xpos[1];
+    site_xpos_i[2] = vec[2] + body_xpos[2];
 
     float quat[4];
-    MulQuat(quat, xquat + 4 * bodyid, site_quat + 4 * i);
-    Quat2Mat(site_xmat + 9 * i, quat);
+    MulQuat(quat, body_xquat, site_quat + 4 * i);
+    Quat2Mat(batch_site_xmat + 9 * i, quat);
   }
 }
 
@@ -367,11 +472,10 @@ __global__ void NoiseInjectionKernel(
     unsigned int seed
 ) {
     unsigned int tid = blockIdx.x * blockDim.x + threadIdx.x;
-    if (tid >= n) {
-        return;
-    }
+    if (tid >= n) return;
 
+    float* batch_qpos = qpos + tid * nq;
     for (int i = 0; i < nq; i++) {
-        qpos[tid * nq + i] += 0.001;
+        batch_qpos[i] += 0.001f;
     }
 }
