@@ -42,7 +42,9 @@ public:
         mj_forward(model, data);
         
         cuda_model = put_model(model);
+        cudaDeviceSynchronize();
         cuda_data = put_data(model, data, batch_size);
+        cudaDeviceSynchronize();
 
         // Zero out the xanchor xaxis xpos xquat arrays before running the kernel
         cudaMemset(cuda_data->xanchor, 0, model->njnt * sizeof(float) * 3 * batch_size);
@@ -50,9 +52,16 @@ public:
         cudaMemset(cuda_data->xpos, 0, model->nbody * sizeof(float) * 3 * batch_size);
         cudaMemset(cuda_data->xquat, 0, model->nbody * sizeof(float) * 4 * batch_size);
 
+        cudaDeviceSynchronize();
+
         LaunchKinematicsKernel(batch_size, cuda_model, cuda_data);
 
+        cudaDeviceSynchronize();
+
         copy_data_to_cpu();
+
+        cudaDeviceSynchronize();
+
         return compare_results();
     }
 

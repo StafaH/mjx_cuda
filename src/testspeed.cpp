@@ -46,30 +46,33 @@ int main(int argc, char* argv[]) {
   // Transfer model and data to GPU
   CudaModel* cm = put_model(m);
   CudaData* cd = put_data(m, d, batch_size);
+  cudaDeviceSynchronize();
 
   printf("Data and model transferred to GPU\n");
 
   // Create CUDA graph objects
   cudaGraph_t graph;
   cudaGraphExec_t graphExec;
+  cudaStream_t stream;
+  cudaStreamCreate(&stream);
 
   // Capture the kernel launches into a CUDA graph
-  cudaStreamBeginCapture(cudaStreamDefault, cudaStreamCaptureModeGlobal);
+  cudaStreamBeginCapture(stream, cudaStreamCaptureModeGlobal);
 
   // Run kinematics kernel
   LaunchKinematicsKernel(batch_size, cm, cd);
 
   // Run noise injection kernel
-//   LaunchNoiseKernel(batch_size, cm, cd);
+  // LaunchNoiseKernel(batch_size, cm, cd);
 
-  cudaStreamEndCapture(cudaStreamDefault, &graph);
+  cudaStreamEndCapture(stream, &graph);
   cudaGraphInstantiate(&graphExec, graph, NULL, NULL, 0);
 
   printf("Graph instantiated\n");
 
   // Warmup run
-  cudaGraphLaunch(graphExec, cudaStreamDefault);
-  cudaDeviceSynchronize();
+  cudaGraphLaunch(graphExec, stream);
+  cudaStreamSynchronize(stream);
 
   printf("Warmup run completed\n");
   
@@ -81,8 +84,11 @@ int main(int argc, char* argv[]) {
   
   // Execute the graph nstep times
   for (int i = 0; i < nstep; i++) {
-    cudaGraphLaunch(graphExec, cudaStreamDefault);
+    cudaGraphLaunch(graphExec, stream);
+    cudaStreamSynchronize(stream);
   }
+
+  cudaDeviceSynchronize();
   
   // Record stop event and synchronize
   cudaEventRecord(stop);
@@ -91,24 +97,23 @@ int main(int argc, char* argv[]) {
   // Calculate elapsed time
   float milliseconds = 0;
   cudaEventElapsedTime(&milliseconds, start, stop);
-  float elapsed_sec = milliseconds / 1000.0f;
+  double elapsed_sec = milliseconds / 1000.0;
   printf("Kernel execution time: %f ms\n", milliseconds);
 
   // Calculate performance metrics
   int total_steps = nstep * batch_size;
-  float steps_per_sec = total_steps / elapsed_sec;
-  float time_per_step_us = (elapsed_sec / total_steps) * 1e6f;
+  double steps_per_sec = total_steps / elapsed_sec;
+  double time_per_step_us = (elapsed_sec / total_steps) * 1e6;
 
   // Print benchmark summary
-  std::cout << "Summary for CUDA simulation rollouts (" << total_steps
-            << " steps, batch_size=" << batch_size << ")\n\n";
-  std::cout << "Total simulation time: " << elapsed_sec << " s\n";
-  std::cout << "Total steps per second: " << steps_per_sec << "\n";
-  std::cout << "Total time per step: " << time_per_step_us << " µs\n";
+  printf("Summary for CUDA simulation rollouts (%d steps, batch_size=%d)\n", total_steps, batch_size);
+  printf("Total simulation time: %f s\n", elapsed_sec);
+  printf("Total steps per second: %.0f\n", steps_per_sec);
+  printf("Total time per step: %f µs\n", time_per_step_us);
 
   // Use CUDA profiler markers for additional profiling
   cudaProfilerStart();
-  cudaGraphLaunch(graphExec, cudaStreamDefault);
+  cudaGraphLaunch(graphExec, stream);
   cudaProfilerStop();
 
   // Cleanup timing events and graph resources
@@ -116,7 +121,8 @@ int main(int argc, char* argv[]) {
   cudaEventDestroy(stop);
   cudaGraphDestroy(graph);
   cudaGraphExecDestroy(graphExec);
-
+  cudaStreamDestroy(stream);
+  
   // Cleanup CUDA resources
   free_cuda_model(cm);
   free_cuda_data(cd);

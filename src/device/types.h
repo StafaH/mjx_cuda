@@ -44,6 +44,8 @@ struct CudaModel {
 
   ~CudaModel() {
     if (qpos0) cudaFree(qpos0);
+    if (body_tree) cudaFree(body_tree);
+    if (body_treeadr) cudaFree(body_treeadr);
     if (body_jntadr) cudaFree(body_jntadr);
     if (body_jntnum) cudaFree(body_jntnum);
     if (body_parentid) cudaFree(body_parentid);
