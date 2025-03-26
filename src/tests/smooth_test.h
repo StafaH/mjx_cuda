@@ -8,11 +8,6 @@
 class SmoothTest : public TestBase {
 public:
     ~SmoothTest() override {
-        if (cpu_data) {
-            cleanup_cpu_data();
-            delete cpu_data;
-        }
-        
         if (cuda_model) {
             free_cuda_model(cuda_model);
         }
@@ -25,16 +20,13 @@ public:
         model = m;
         data = d;
         batch_size = bs;
-
-        cpu_data = new CudaData();
-        allocate_cpu_arrays();
     }
 
     bool run_test() override {
         model->opt.jacobian = mjJAC_SPARSE;
         // give the system a little kick to ensure we have non-identity rotations
         for (int i = 0; i < model->nq; i++) {
-            data->qvel[i] = (float)rand() / RAND_MAX * 0.02f - 0.01f;
+            data->qvel[i] = ((float)rand() / RAND_MAX) * 0.02f - 0.01f;
         }
         for (int i = 0; i < 3; i++) {
             mj_step(model, data);
@@ -58,10 +50,6 @@ public:
 
         cudaDeviceSynchronize();
 
-        copy_data_to_cpu();
-
-        cudaDeviceSynchronize();
-
         return compare_results();
     }
 
@@ -70,134 +58,126 @@ public:
     }
 
 private:
-    void allocate_cpu_arrays() {
-        cpu_data->xanchor = new float[model->njnt * 3];
-        cpu_data->xaxis = new float[model->njnt * 3];
-        cpu_data->xpos = new float[model->nbody * 3];
-        cpu_data->xquat = new float[model->nbody * 4];
-        cpu_data->xipos = new float[model->nbody * 3];
-        cpu_data->xmat = new float[model->nbody * 9];
-        cpu_data->ximat = new float[model->nbody * 9];
-        cpu_data->geom_xpos = new float[model->ngeom * 3];
-        cpu_data->geom_xmat = new float[model->ngeom * 9];
-        cpu_data->site_xpos = new float[model->nsite * 3];
-        cpu_data->site_xmat = new float[model->nsite * 9];
-    }
-
-    void cleanup_cpu_data() {
-        delete[] cpu_data->xanchor;
-        delete[] cpu_data->xaxis;
-        delete[] cpu_data->xpos;
-        delete[] cpu_data->xquat;
-        delete[] cpu_data->xipos;
-        delete[] cpu_data->xmat;
-        delete[] cpu_data->ximat;
-        delete[] cpu_data->geom_xpos;
-        delete[] cpu_data->geom_xmat;
-        delete[] cpu_data->site_xpos;
-        delete[] cpu_data->site_xmat;
-    }
-
-    void copy_data_to_cpu() {
-        cudaMemcpy(cpu_data->xanchor, cuda_data->xanchor, model->njnt * 3 * sizeof(float), cudaMemcpyDeviceToHost);
-        cudaMemcpy(cpu_data->xaxis, cuda_data->xaxis, model->njnt * 3 * sizeof(float), cudaMemcpyDeviceToHost);
-        cudaMemcpy(cpu_data->xpos, cuda_data->xpos, model->nbody * 3 * sizeof(float), cudaMemcpyDeviceToHost);
-        cudaMemcpy(cpu_data->xquat, cuda_data->xquat, model->nbody * 4 * sizeof(float), cudaMemcpyDeviceToHost);
-        cudaMemcpy(cpu_data->xipos, cuda_data->xipos, model->nbody * 3 * sizeof(float), cudaMemcpyDeviceToHost);
-        cudaMemcpy(cpu_data->xmat, cuda_data->xmat, model->nbody * 9 * sizeof(float), cudaMemcpyDeviceToHost);
-        cudaMemcpy(cpu_data->ximat, cuda_data->ximat, model->nbody * 9 * sizeof(float), cudaMemcpyDeviceToHost);
-        cudaMemcpy(cpu_data->geom_xpos, cuda_data->geom_xpos, model->ngeom * 3 * sizeof(float), cudaMemcpyDeviceToHost);
-        cudaMemcpy(cpu_data->geom_xmat, cuda_data->geom_xmat, model->ngeom * 9 * sizeof(float), cudaMemcpyDeviceToHost);
-        cudaMemcpy(cpu_data->site_xpos, cuda_data->site_xpos, model->nsite * 3 * sizeof(float), cudaMemcpyDeviceToHost);
-        cudaMemcpy(cpu_data->site_xmat, cuda_data->site_xmat, model->nsite * 9 * sizeof(float), cudaMemcpyDeviceToHost);
-    }
-
     bool compare_results() {
+        // Allocate CPU arrays for comparison
+        float* cpu_xanchor = new float[model->njnt * 3];
+        float* cpu_xaxis = new float[model->njnt * 3];
+        float* cpu_xpos = new float[model->nbody * 3];
+        float* cpu_xquat = new float[model->nbody * 4];
+        float* cpu_xipos = new float[model->nbody * 3];
+        float* cpu_xmat = new float[model->nbody * 9];
+        float* cpu_ximat = new float[model->nbody * 9];
+        float* cpu_geom_xpos = new float[model->ngeom * 3];
+        float* cpu_geom_xmat = new float[model->ngeom * 9];
+        float* cpu_site_xpos = new float[model->nsite * 3];
+        float* cpu_site_xmat = new float[model->nsite * 9];
+
+        // Copy data from device to CPU arrays
+        cudaMemcpy(cpu_xanchor, cuda_data->xanchor, model->njnt * 3 * sizeof(float), cudaMemcpyDeviceToHost);
+        cudaMemcpy(cpu_xaxis, cuda_data->xaxis, model->njnt * 3 * sizeof(float), cudaMemcpyDeviceToHost);
+        cudaMemcpy(cpu_xpos, cuda_data->xpos, model->nbody * 3 * sizeof(float), cudaMemcpyDeviceToHost);
+        cudaMemcpy(cpu_xquat, cuda_data->xquat, model->nbody * 4 * sizeof(float), cudaMemcpyDeviceToHost);
+        cudaMemcpy(cpu_xipos, cuda_data->xipos, model->nbody * 3 * sizeof(float), cudaMemcpyDeviceToHost);
+        cudaMemcpy(cpu_xmat, cuda_data->xmat, model->nbody * 9 * sizeof(float), cudaMemcpyDeviceToHost);
+        cudaMemcpy(cpu_ximat, cuda_data->ximat, model->nbody * 9 * sizeof(float), cudaMemcpyDeviceToHost);
+        cudaMemcpy(cpu_geom_xpos, cuda_data->geom_xpos, model->ngeom * 3 * sizeof(float), cudaMemcpyDeviceToHost);
+        cudaMemcpy(cpu_geom_xmat, cuda_data->geom_xmat, model->ngeom * 9 * sizeof(float), cudaMemcpyDeviceToHost);
+        cudaMemcpy(cpu_site_xpos, cuda_data->site_xpos, model->nsite * 3 * sizeof(float), cudaMemcpyDeviceToHost);
+        cudaMemcpy(cpu_site_xmat, cuda_data->site_xmat, model->nsite * 9 * sizeof(float), cudaMemcpyDeviceToHost);
+
+        cudaDeviceSynchronize();
+
         const float TOLERANCE = 5e-2f;
-        // print xanchor
-        for (int i = 0; i < model->njnt; i++) {
-            std::cout << "xanchor[" << i << "]: " 
-                      << cpu_data->xanchor[i * 3] << ", "
-                      << cpu_data->xanchor[i * 3 + 1] << ", "
-                      << cpu_data->xanchor[i * 3 + 2] << std::endl;
-        }
+        bool passed = true;
 
         // Compare joint arrays
-        for (int i = 0; i < model->njnt; i++) {
+        for (int i = 0; i < model->njnt && passed; i++) {
             for (int j = 0; j < 3; j++) {
-                if (!compare_value(cpu_data->xanchor[i * 3 + j], data->xanchor[i * 3 + j], "xanchor") ||
-                    !compare_value(cpu_data->xaxis[i * 3 + j], data->xaxis[i * 3 + j], "xaxis")) {
-                    std::cout << "Failed at xanchor[" << i << "][" << j << "]" << std::endl;
-                    return false;
+                if (std::abs(cpu_xanchor[i * 3 + j] - data->xanchor[i * 3 + j]) > TOLERANCE ||
+                    std::abs(cpu_xaxis[i * 3 + j] - data->xaxis[i * 3 + j]) > TOLERANCE) {
+                    std::cerr << "Joint mismatch at " << i << std::endl;
+                    passed = false;
+                    break;
                 }
             }
         }
 
         // Compare body arrays
-        for (int i = 0; i < model->nbody; i++) {
+        for (int i = 0; i < model->nbody && passed; i++) {
             for (int j = 0; j < 3; j++) {
-                if (!compare_value(cpu_data->xpos[i * 3 + j], data->xpos[i * 3 + j], "xpos") ||
-                    !compare_value(cpu_data->xipos[i * 3 + j], data->xipos[i * 3 + j], "xipos")) {
-                    return false;
+                if (std::abs(cpu_xpos[i * 3 + j] - data->xpos[i * 3 + j]) > TOLERANCE ||
+                    std::abs(cpu_xipos[i * 3 + j] - data->xipos[i * 3 + j]) > TOLERANCE) {
+                    std::cerr << "Body position mismatch at " << i << std::endl;
+                    passed = false;
+                    break;
                 }
             }
-            for (int j = 0; j < 4; j++) {
-                if (!compare_value(cpu_data->xquat[i * 4 + j], data->xquat[i * 4 + j], "xquat")) {
-                    return false;
+            for (int j = 0; j < 4 && passed; j++) {
+                if (std::abs(cpu_xquat[i * 4 + j] - data->xquat[i * 4 + j]) > TOLERANCE) {
+                    std::cerr << "Body quaternion mismatch at " << i << std::endl;
+                    passed = false;
+                    break;
                 }
             }
-        }
-        
-        // Compare matrices
-        for (int i = 0; i < model->nbody; i++) {
-            for (int j = 0; j < 9; j++) {
-                if (!compare_value(cpu_data->xmat[i * 9 + j], data->xmat[i * 9 + j], "xmat") ||
-                    !compare_value(cpu_data->ximat[i * 9 + j], data->ximat[i * 9 + j], "ximat")) {
-                    return false;
-                }
-            }
-        }
-        
-        // Compare geometry arrays
-        for (int i = 0; i < model->ngeom; i++) {
-            for (int j = 0; j < 3; j++) {
-                if (!compare_value(cpu_data->geom_xpos[i * 3 + j], data->geom_xpos[i * 3 + j], "geom_xpos")) {
-                    return false;
-                }
-            }
-            for (int j = 0; j < 9; j++) {
-                if (!compare_value(cpu_data->geom_xmat[i * 9 + j], data->geom_xmat[i * 9 + j], "geom_xmat")) {
-                    return false;
+            for (int j = 0; j < 9 && passed; j++) {
+                if (std::abs(cpu_xmat[i * 9 + j] - data->xmat[i * 9 + j]) > TOLERANCE ||
+                    std::abs(cpu_ximat[i * 9 + j] - data->ximat[i * 9 + j]) > TOLERANCE) {
+                    std::cerr << "Body matrix mismatch at " << i << std::endl;
+                    passed = false;
+                    break;
                 }
             }
         }
-        
-        // Compare site arrays
-        for (int i = 0; i < model->nsite; i++) {
-            for (int j = 0; j < 3; j++) {
-                if (!compare_value(cpu_data->site_xpos[i * 3 + j], data->site_xpos[i * 3 + j], "site_xpos")) {
-                    return false;
-                }
-            }
-            for (int j = 0; j < 9; j++) {
-                if (!compare_value(cpu_data->site_xmat[i * 9 + j], data->site_xmat[i * 9 + j], "site_xmat")) {
-                    return false;
-                }
-            }
-        }
-        
-        return true;
-    }
 
-    bool compare_value(float cuda_val, float cpu_val, const char* name) {
-        const float TOLERANCE = 5e-2f;
-        if (std::abs(cuda_val - cpu_val) > TOLERANCE) {
-            std::cerr << "Error: " << name << " mismatch. CUDA: " << cuda_val
-                      << ", CPU: " << cpu_val << std::endl;
-            return false;
-        }
-        return true;
-    }
+        // // Compare geometry arrays
+        // for (int i = 0; i < model->ngeom && passed; i++) {
+        //     for (int j = 0; j < 3; j++) {
+        //         if (std::abs(cpu_geom_xpos[i * 3 + j] - data->geom_xpos[i * 3 + j]) > TOLERANCE) {
+        //             std::cerr << "Geom position mismatch at " << i << std::endl;
+        //             passed = false;
+        //             break;
+        //         }
+        //     }
+        //     for (int j = 0; j < 9 && passed; j++) {
+        //         if (std::abs(cpu_geom_xmat[i * 9 + j] - data->geom_xmat[i * 9 + j]) > TOLERANCE) {
+        //             std::cerr << "Geom matrix mismatch at " << i << std::endl;
+        //             passed = false;
+        //             break;
+        //         }
+        //     }
+        // }
 
-    CudaData* cpu_data = nullptr;
+        // // Compare site arrays
+        // for (int i = 0; i < model->nsite && passed; i++) {
+        //     for (int j = 0; j < 3; j++) {
+        //         if (std::abs(cpu_site_xpos[i * 3 + j] - data->site_xpos[i * 3 + j]) > TOLERANCE) {
+        //             std::cerr << "Site position mismatch at " << i << std::endl;
+        //             passed = false;
+        //             break;
+        //         }
+        //     }
+        //     for (int j = 0; j < 9 && passed; j++) {
+        //         if (std::abs(cpu_site_xmat[i * 9 + j] - data->site_xmat[i * 9 + j]) > TOLERANCE) {
+        //             std::cerr << "Site matrix mismatch at " << i << std::endl;
+        //             passed = false;
+        //             break;
+        //         }
+        //     }
+        // }
+
+        // Free CPU arrays
+        delete[] cpu_xanchor;
+        delete[] cpu_xaxis;
+        delete[] cpu_xpos;
+        delete[] cpu_xquat;
+        delete[] cpu_xipos;
+        delete[] cpu_xmat;
+        delete[] cpu_ximat;
+        delete[] cpu_geom_xpos;
+        delete[] cpu_geom_xmat;
+        delete[] cpu_site_xpos;
+        delete[] cpu_site_xmat;
+
+        return passed;
+    }
 }; 

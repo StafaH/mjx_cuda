@@ -40,6 +40,7 @@ CudaModel* put_model(const mjModel* m) {
     }
 
     cm->nlevel = max_depth + 1;
+    cm->nbody_treeadr = body_treeadr.size();
     cudaMalloc(&cm->body_tree, body_tree.size() * sizeof(int));
     cudaMallocHost(&cm->body_treeadr, body_treeadr.size() * sizeof(int));
 

@@ -23,7 +23,7 @@ void LaunchKinematicsKernel(
     CudaModel* cm,
     CudaData* cd) {
 
-  int threadsPerBlock = 256;
+  int threadsPerBlock = 16;
   int numBlocks = (batch_size + threadsPerBlock - 1) / threadsPerBlock;
 
   // Launch root kernel
@@ -35,11 +35,11 @@ void LaunchKinematicsKernel(
       cd->xmat,
       cd->ximat);
 
-  for (int i = 1; i < cm->nlevel; i++) {
+  for (int i = 1; i < cm->nbody_treeadr; i++) {
     int beg = cm->body_treeadr[i];
-    int end = (i == cm->nbody - 1) ? cm->nbody : cm->body_treeadr[i + 1];
+    int end = (i == cm->nbody_treeadr - 1) ? cm->nbody : cm->body_treeadr[i + 1];
     int numBodiesInLevel = end - beg;
-    
+
     dim3 gridDim((batch_size + threadsPerBlock - 1) / threadsPerBlock, numBodiesInLevel);
     LevelKernel<<<gridDim, threadsPerBlock>>>(
         batch_size,
