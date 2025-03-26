@@ -18,6 +18,7 @@ void LaunchNoiseKernel(
     CudaData* cd);
 
 void LaunchKinematicsKernel(
+    cudaStream_t stream,
     unsigned int batch_size,
     CudaModel* cm,
     CudaData* cd);

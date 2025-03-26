@@ -60,7 +60,7 @@ int main(int argc, char* argv[]) {
   cudaStreamBeginCapture(stream, cudaStreamCaptureModeGlobal);
 
   // Run kinematics kernel
-  LaunchKinematicsKernel(batch_size, cm, cd);
+  LaunchKinematicsKernel(stream, batch_size, cm, cd);
 
   // Run noise injection kernel
   // LaunchNoiseKernel(batch_size, cm, cd);

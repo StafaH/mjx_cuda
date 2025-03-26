@@ -46,7 +46,7 @@ public:
 
         cudaDeviceSynchronize();
 
-        LaunchKinematicsKernel(batch_size, cuda_model, cuda_data);
+        LaunchKinematicsKernel(cudaStreamDefault, batch_size, cuda_model, cuda_data);
 
         cudaDeviceSynchronize();
 

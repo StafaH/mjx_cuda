@@ -19,6 +19,7 @@ void LaunchNoiseKernel(
 }
 
 void LaunchKinematicsKernel(
+    cudaStream_t stream,
     unsigned int batch_size,
     CudaModel* cm,
     CudaData* cd) {
@@ -27,7 +28,7 @@ void LaunchKinematicsKernel(
   int numBlocks = (batch_size + threadsPerBlock - 1) / threadsPerBlock;
 
   // Launch root kernel
-  RootKernel<<<numBlocks, threadsPerBlock>>>(
+  RootKernel<<<numBlocks, threadsPerBlock, 0, stream>>>(
       batch_size,
       cd->xpos,
       cd->xquat,
@@ -41,7 +42,7 @@ void LaunchKinematicsKernel(
     int numBodiesInLevel = end - beg;
 
     dim3 gridDim((batch_size + threadsPerBlock - 1) / threadsPerBlock, numBodiesInLevel);
-    LevelKernel<<<gridDim, threadsPerBlock>>>(
+    LevelKernel<<<gridDim, threadsPerBlock, 0, stream>>>(
         batch_size,
         beg,
         cm->nq,
@@ -76,7 +77,7 @@ void LaunchKinematicsKernel(
   // Launch geometry kernel if needed
   if (cm->ngeom > 0) {
     dim3 gridDim((batch_size + threadsPerBlock - 1) / threadsPerBlock, cm->ngeom);
-    GeomLocalToGlobalKernel<<<gridDim, threadsPerBlock>>>(
+    GeomLocalToGlobalKernel<<<gridDim, threadsPerBlock, 0, stream>>>(
         batch_size,
         cm->nbody,
         cm->ngeom,
@@ -92,7 +93,7 @@ void LaunchKinematicsKernel(
   // Launch site kernel if needed
   if (cm->nsite > 0) {
     dim3 gridDim((batch_size + threadsPerBlock - 1) / threadsPerBlock, cm->nsite);
-    SiteLocalToGlobalKernel<<<gridDim, threadsPerBlock>>>(
+    SiteLocalToGlobalKernel<<<gridDim, threadsPerBlock, 0, stream>>>(
         batch_size,
         cm->nbody,
         cm->nsite,
