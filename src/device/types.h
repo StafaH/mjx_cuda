@@ -2,6 +2,19 @@
 
 #include <cuda_runtime.h>
 
+struct __align__(16) vec3p {
+  float x, y, z, pad;
+};
+
+struct __align__(16) vec4p {
+  float x, y, z, w;
+};
+
+struct __align__(16) quat {
+  float w, x, y, z;
+};
+
+
 struct CudaModel {
   int nq;
   int njnt;
@@ -18,20 +31,20 @@ struct CudaModel {
   int* body_jntnum;
   int* body_parentid;
   int* body_mocapid;
-  float* body_pos;
-  float* body_quat;
-  float* body_ipos;
-  float* body_iquat;
+  vec3p* body_pos;
+  quat* body_quat;
+  vec3p* body_ipos;
+  quat* body_iquat;
   int* jnt_type;
   int* jnt_qposadr;
-  float* jnt_axis;
-  float* jnt_pos;
+  vec3p* jnt_axis;
+  vec3p* jnt_pos;
   int* geom_bodyid;
-  float* geom_pos;
-  float* geom_quat;
+  vec3p* geom_pos;
+  quat* geom_quat;
   int* site_bodyid;
-  float* site_pos;
-  float* site_quat;
+  vec3p* site_pos;
+  quat* site_quat;
 
   CudaModel() : nq(0), njnt(0), nbody(0), ngeom(0), nsite(0), nmocap(0), nlevel(0), nbody_treeadr(0),
                 qpos0(nullptr), body_tree(nullptr), body_treeadr(nullptr), body_jntadr(nullptr), body_jntnum(nullptr),
@@ -76,18 +89,18 @@ struct CudaData {
   int batch_size;
 
   float* qpos;
-  float* mocap_pos;
-  float* mocap_quat;
-  float* xanchor;
-  float* xaxis;
+  vec3p* mocap_pos;
+  quat* mocap_quat;
+  vec3p* xanchor;
+  vec3p* xaxis;
   float* xmat;
-  float* xpos;
-  float* xquat;
-  float* xipos;
+  vec3p* xpos;
+  quat* xquat;
+  vec3p* xipos;
   float* ximat;
-  float* geom_xpos;
+  vec3p* geom_xpos;
   float* geom_xmat;
-  float* site_xpos;
+  vec3p* site_xpos;
   float* site_xmat;
 
   CudaData() : nq(0), nmocap(0), nbody(0), ngeom(0), nsite(0), batch_size(0),

@@ -4,6 +4,16 @@
 #include <cuda_runtime.h>
 #include <cstring>
 
+#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
+inline void gpuAssert(cudaError_t code, char *file, int line, bool abort=true)
+{
+   if (code != cudaSuccess) 
+   {
+      fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
+      if (abort) getchar();
+   }
+}
+
 inline __device__ void Normalize(float* x, int n) {
   float norm = 0.0f;
   for (int i = 0; i < n; ++i) {

@@ -49,44 +49,110 @@ CudaModel* put_model(const mjModel* m) {
 
     // Allocate temporary float arrays for conversion
     std::vector<float> qpos0_float(m->nq);
-    std::vector<float> body_pos_float(m->nbody * 3);
-    std::vector<float> body_quat_float(m->nbody * 4);
-    std::vector<float> body_ipos_float(m->nbody * 3);
-    std::vector<float> body_iquat_float(m->nbody * 4);
-    std::vector<float> jnt_axis_float(m->njnt * 3);
-    std::vector<float> jnt_pos_float(m->njnt * 3);
-    std::vector<float> geom_pos_float(m->ngeom * 3);
-    std::vector<float> geom_quat_float(m->ngeom * 4);
-    std::vector<float> site_pos_float(m->nsite * 3);
-    std::vector<float> site_quat_float(m->nsite * 4);
+    std::vector<vec3p> body_pos(m->nbody);
+    std::vector<quat> body_quat(m->nbody);
+    std::vector<vec3p> body_ipos(m->nbody);
+    std::vector<quat> body_iquat(m->nbody);
+    std::vector<vec3p> jnt_axis(m->njnt);
+    std::vector<vec3p> jnt_pos(m->njnt);
+    std::vector<vec3p> geom_pos(m->ngeom);
+    std::vector<quat> geom_quat(m->ngeom);
+    std::vector<vec3p> site_pos(m->nsite);
+    std::vector<quat> site_quat(m->nsite);
 
     // Convert double arrays to float
     for (int i = 0; i < m->nq; i++) {
         qpos0_float[i] = static_cast<float>(m->qpos0[i]);
     }
-    for (int i = 0; i < m->nbody * 3; i++) {
-        body_pos_float[i] = static_cast<float>(m->body_pos[i]);
-        body_ipos_float[i] = static_cast<float>(m->body_ipos[i]);
+
+    for (int i = 0; i < m->nbody; i++) {
+        vec3p bpos = {
+            static_cast<float>(m->body_pos[i * 3]),
+            static_cast<float>(m->body_pos[i * 3 + 1]),
+            static_cast<float>(m->body_pos[i * 3 + 2]),
+            0.0f
+        };
+        body_pos[i] = bpos;
+
+        vec3p bposi = {
+            static_cast<float>(m->body_ipos[i * 3]),
+            static_cast<float>(m->body_ipos[i * 3 + 1]),
+            static_cast<float>(m->body_ipos[i * 3 + 2]),
+            0.0f
+        };
+        body_ipos[i] = bposi;
     }
-    for (int i = 0; i < m->nbody * 4; i++) {
-        body_quat_float[i] = static_cast<float>(m->body_quat[i]);
-        body_iquat_float[i] = static_cast<float>(m->body_iquat[i]);
+
+    for (int i = 0; i < m->nbody; i++) {
+        quat bquat = {
+            static_cast<float>(m->body_quat[i * 4]),
+            static_cast<float>(m->body_quat[i * 4 + 1]),
+            static_cast<float>(m->body_quat[i * 4 + 2]),
+            static_cast<float>(m->body_quat[i * 4 + 3])
+        };
+        body_quat[i] = bquat;
+
+        quat biquat = {
+            static_cast<float>(m->body_iquat[i * 4]),
+            static_cast<float>(m->body_iquat[i * 4 + 1]),
+            static_cast<float>(m->body_iquat[i * 4 + 2]),
+            static_cast<float>(m->body_iquat[i * 4 + 3])
+        };
+        body_iquat[i] = biquat;
     }
-    for (int i = 0; i < m->njnt * 3; i++) {
-        jnt_axis_float[i] = static_cast<float>(m->jnt_axis[i]);
-        jnt_pos_float[i] = static_cast<float>(m->jnt_pos[i]);
+    
+    for (int i = 0; i < m->njnt; i++) {
+        vec3p jaxis = {
+            static_cast<float>(m->jnt_axis[i * 3]),
+            static_cast<float>(m->jnt_axis[i * 3 + 1]),
+            static_cast<float>(m->jnt_axis[i * 3 + 2]),
+            0.0f
+        };
+        jnt_axis[i] = jaxis;
+
+        vec3p jpos = {
+            static_cast<float>(m->jnt_pos[i * 3]),
+            static_cast<float>(m->jnt_pos[i * 3 + 1]),
+            static_cast<float>(m->jnt_pos[i * 3 + 2]),
+            0.0f
+        };
+        jnt_pos[i] = jpos;
     }
-    for (int i = 0; i < m->ngeom * 3; i++) {
-        geom_pos_float[i] = static_cast<float>(m->geom_pos[i]);
+
+    for (int i = 0; i < m->ngeom; i++) {
+        vec3p gpos = {
+            static_cast<float>(m->geom_pos[i * 3]),
+            static_cast<float>(m->geom_pos[i * 3 + 1]),
+            static_cast<float>(m->geom_pos[i * 3 + 2]),
+            0.0f
+        };
+        geom_pos[i] = gpos;
+
+        quat gquat = {
+            static_cast<float>(m->geom_quat[i * 4]),
+            static_cast<float>(m->geom_quat[i * 4 + 1]),
+            static_cast<float>(m->geom_quat[i * 4 + 2]),
+            static_cast<float>(m->geom_quat[i * 4 + 3])
+        };
+        geom_quat[i] = gquat;
     }
-    for (int i = 0; i < m->ngeom * 4; i++) {
-        geom_quat_float[i] = static_cast<float>(m->geom_quat[i]);
-    }
-    for (int i = 0; i < m->nsite * 3; i++) {
-        site_pos_float[i] = static_cast<float>(m->site_pos[i]);
-    }
-    for (int i = 0; i < m->nsite * 4; i++) {
-        site_quat_float[i] = static_cast<float>(m->site_quat[i]);
+
+    for (int i = 0; i < m->nsite; i++) {
+        vec3p spos = {
+            static_cast<float>(m->site_pos[i * 3]),
+            static_cast<float>(m->site_pos[i * 3 + 1]),
+            static_cast<float>(m->site_pos[i * 3 + 2]),
+            0.0f
+        };
+        site_pos[i] = spos;
+
+        quat squat = {
+            static_cast<float>(m->site_quat[i * 4]),
+            static_cast<float>(m->site_quat[i * 4 + 1]),
+            static_cast<float>(m->site_quat[i * 4 + 2]),
+            static_cast<float>(m->site_quat[i * 4 + 3])
+        };
+        site_quat[i] = squat;
     }
 
     cudaMalloc(&cm->qpos0, m->nq * sizeof(float));
@@ -94,40 +160,40 @@ CudaModel* put_model(const mjModel* m) {
     cudaMalloc(&cm->body_jntnum, m->njnt * sizeof(int));
     cudaMalloc(&cm->body_parentid, m->nbody * sizeof(int));
     cudaMalloc(&cm->body_mocapid, m->nbody * sizeof(int));
-    cudaMalloc(&cm->body_pos, m->nbody * 3 * sizeof(float));
-    cudaMalloc(&cm->body_quat, m->nbody * 4 * sizeof(float));
-    cudaMalloc(&cm->body_ipos, m->nbody * 3 * sizeof(float));
-    cudaMalloc(&cm->body_iquat, m->nbody * 4 * sizeof(float));
+    cudaMalloc(&cm->body_pos, m->nbody * sizeof(vec3p));
+    cudaMalloc(&cm->body_quat, m->nbody * sizeof(quat));
+    cudaMalloc(&cm->body_ipos, m->nbody * sizeof(vec3p));
+    cudaMalloc(&cm->body_iquat, m->nbody * sizeof(quat));
     cudaMalloc(&cm->jnt_type, m->njnt * sizeof(int));
     cudaMalloc(&cm->jnt_qposadr, m->njnt * sizeof(int));
-    cudaMalloc(&cm->jnt_axis, m->njnt * 3 * sizeof(float));
-    cudaMalloc(&cm->jnt_pos, m->njnt * 3 * sizeof(float));
+    cudaMalloc(&cm->jnt_axis, m->njnt * sizeof(vec3p));
+    cudaMalloc(&cm->jnt_pos, m->njnt * sizeof(vec3p));
     cudaMalloc(&cm->geom_bodyid, m->ngeom * sizeof(int));
-    cudaMalloc(&cm->geom_pos, m->ngeom * 3 * sizeof(float));
-    cudaMalloc(&cm->geom_quat, m->ngeom * 4 * sizeof(float));
+    cudaMalloc(&cm->geom_pos, m->ngeom * sizeof(vec3p));
+    cudaMalloc(&cm->geom_quat, m->ngeom * sizeof(quat));
     cudaMalloc(&cm->site_bodyid, m->nsite * sizeof(int));
-    cudaMalloc(&cm->site_pos, m->nsite * 3 * sizeof(float));
-    cudaMalloc(&cm->site_quat, m->nsite * 4 * sizeof(float));
+    cudaMalloc(&cm->site_pos, m->nsite * sizeof(vec3p));
+    cudaMalloc(&cm->site_quat, m->nsite * sizeof(quat));
 
     cudaMemcpy(cm->qpos0, qpos0_float.data(), m->nq * sizeof(float), cudaMemcpyHostToDevice);
     cudaMemcpy(cm->body_jntadr, m->body_jntadr, m->njnt * sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpy(cm->body_jntnum, m->body_jntnum, m->njnt * sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpy(cm->body_parentid, m->body_parentid, m->nbody * sizeof(int), cudaMemcpyHostToDevice);
     cudaMemcpy(cm->body_mocapid, m->body_mocapid, m->nbody * sizeof(int), cudaMemcpyHostToDevice);
-    cudaMemcpy(cm->body_pos, body_pos_float.data(), m->nbody * 3 * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(cm->body_quat, body_quat_float.data(), m->nbody * 4 * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(cm->body_ipos, body_ipos_float.data(), m->nbody * 3 * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(cm->body_iquat, body_iquat_float.data(), m->nbody * 4 * sizeof(float), cudaMemcpyHostToDevice);    
+    cudaMemcpy(cm->body_pos, body_pos.data(), m->nbody * sizeof(vec3p), cudaMemcpyHostToDevice);
+    cudaMemcpy(cm->body_quat, body_quat.data(), m->nbody * sizeof(quat), cudaMemcpyHostToDevice);
+    cudaMemcpy(cm->body_ipos, body_ipos.data(), m->nbody * sizeof(vec3p), cudaMemcpyHostToDevice);
+    cudaMemcpy(cm->body_iquat, body_iquat.data(), m->nbody * sizeof(quat), cudaMemcpyHostToDevice);    
     cudaMemcpy(cm->jnt_type, m->jnt_type, m->njnt * sizeof(int), cudaMemcpyHostToDevice);   
     cudaMemcpy(cm->jnt_qposadr, m->jnt_qposadr, m->njnt * sizeof(int), cudaMemcpyHostToDevice);
-    cudaMemcpy(cm->jnt_axis, jnt_axis_float.data(), m->njnt * 3 * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(cm->jnt_pos, jnt_pos_float.data(), m->njnt * 3 * sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy(cm->jnt_axis, jnt_axis.data(), m->njnt * sizeof(vec3p), cudaMemcpyHostToDevice);
+    cudaMemcpy(cm->jnt_pos, jnt_pos.data(), m->njnt * sizeof(vec3p), cudaMemcpyHostToDevice);
     cudaMemcpy(cm->geom_bodyid, m->geom_bodyid, m->ngeom * sizeof(int), cudaMemcpyHostToDevice);
-    cudaMemcpy(cm->geom_pos, geom_pos_float.data(), m->ngeom * 3 * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(cm->geom_quat, geom_quat_float.data(), m->ngeom * 4 * sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy(cm->geom_pos, geom_pos.data(), m->ngeom * sizeof(vec3p), cudaMemcpyHostToDevice);
+    cudaMemcpy(cm->geom_quat, geom_quat.data(), m->ngeom * sizeof(quat), cudaMemcpyHostToDevice);
     cudaMemcpy(cm->site_bodyid, m->site_bodyid, m->nsite * sizeof(int), cudaMemcpyHostToDevice);
-    cudaMemcpy(cm->site_pos, site_pos_float.data(), m->nsite * 3 * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(cm->site_quat, site_quat_float.data(), m->nsite * 4 * sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy(cm->site_pos, site_pos.data(), m->nsite * sizeof(vec3p), cudaMemcpyHostToDevice);
+    cudaMemcpy(cm->site_quat, site_quat.data(), m->nsite * sizeof(quat), cudaMemcpyHostToDevice);
     
     return cm;
 }
@@ -143,102 +209,152 @@ CudaData* put_data(const mjModel* m, const mjData* d, int nworlds) {
     cd->batch_size = nworlds;
 
     // Allocate temporary float arrays for conversion
-    std::vector<float> qpos_float(nworlds * m->nq);
-    std::vector<float> mocap_pos_float(nworlds * m->nmocap * 3);
-    std::vector<float> mocap_quat_float(nworlds * m->nmocap * 4);
-    std::vector<float> xanchor_float(nworlds * m->njnt * 3);
-    std::vector<float> xaxis_float(nworlds * m->njnt * 3);
-    std::vector<float> xmat_float(nworlds * m->nbody * 9);
-    std::vector<float> xpos_float(nworlds * m->nbody * 3);
-    std::vector<float> xquat_float(nworlds * m->nbody * 4);
-    std::vector<float> xipos_float(nworlds * m->nbody * 3);
-    std::vector<float> ximat_float(nworlds * m->nbody * 9);
-    std::vector<float> geom_xpos_float(nworlds * m->ngeom * 3);
-    std::vector<float> geom_xmat_float(nworlds * m->ngeom * 9);
-    std::vector<float> site_xpos_float(nworlds * m->nsite * 3);
-    std::vector<float> site_xmat_float(nworlds * m->nsite * 9);
+    std::vector<float> qpos(nworlds * m->nq);
+    std::vector<vec3p> mocap_pos(nworlds * m->nmocap);
+    std::vector<quat> mocap_quat(nworlds * m->nmocap);
+    std::vector<vec3p> xanchor(nworlds * m->njnt);
+    std::vector<vec3p> xaxis(nworlds * m->njnt);
+    std::vector<float> xmat(nworlds * m->nbody * 9);
+    std::vector<vec3p> xpos(nworlds * m->nbody);
+    std::vector<quat> xquat(nworlds * m->nbody);
+    std::vector<vec3p> xipos(nworlds * m->nbody);
+    std::vector<float> ximat(nworlds * m->nbody * 9);
+    std::vector<vec3p> geom_xpos(nworlds * m->ngeom);
+    std::vector<float> geom_xmat(nworlds * m->ngeom * 9);
+    std::vector<vec3p> site_xpos(nworlds * m->nsite);
+    std::vector<float> site_xmat(nworlds * m->nsite * 9);
 
     // Convert and tile data across nworlds
     for (int w = 0; w < nworlds; w++) {
-        // qpos
         for (int i = 0; i < m->nq; i++) {
-            qpos_float[w * m->nq + i] = static_cast<float>(d->qpos[i]);
+            qpos[w * m->nq + i] = static_cast<float>(d->qpos[i]);
         }
         
-        // mocap data
-        for (int i = 0; i < m->nmocap * 3; i++) {
-            mocap_pos_float[w * m->nmocap * 3 + i] = static_cast<float>(d->mocap_pos[i]);
+        for (int i = 0; i < m->nmocap; i++) {
+            vec3p mpos = {
+                static_cast<float>(d->mocap_pos[i * 3]),
+                static_cast<float>(d->mocap_pos[i * 3 + 1]),
+                static_cast<float>(d->mocap_pos[i * 3 + 2]),
+                0.0f
+            };
+            mocap_pos[w * m->nmocap + i] = mpos;
         }
-        for (int i = 0; i < m->nmocap * 4; i++) {
-            mocap_quat_float[w * m->nmocap * 4 + i] = static_cast<float>(d->mocap_quat[i]);
+        for (int i = 0; i < m->nmocap; i++) {
+            quat mquat = {
+                static_cast<float>(d->mocap_quat[i * 4]),
+                static_cast<float>(d->mocap_quat[i * 4 + 1]),
+                static_cast<float>(d->mocap_quat[i * 4 + 2]),
+                static_cast<float>(d->mocap_quat[i * 4 + 3])
+            };
+            mocap_quat[w * m->nmocap + i] = mquat;
         }
 
         // joint data
-        for (int i = 0; i < m->njnt * 3; i++) {
-            xanchor_float[w * m->njnt * 3 + i] = static_cast<float>(d->xanchor[i]);
-            xaxis_float[w * m->njnt * 3 + i] = static_cast<float>(d->xaxis[i]);
+        for (int i = 0; i < m->njnt; i++) {
+            vec3p anchor = {
+                static_cast<float>(d->xanchor[i * 3]),
+                static_cast<float>(d->xanchor[i * 3 + 1]),
+                static_cast<float>(d->xanchor[i * 3 + 2]),
+                0.0f
+            };
+            xanchor[w * m->njnt + i] = anchor;
+            vec3p axis = {
+                static_cast<float>(d->xaxis[i * 3]),
+                static_cast<float>(d->xaxis[i * 3 + 1]),
+                static_cast<float>(d->xaxis[i * 3 + 2]),
+                0.0f
+            };
+            xaxis[w * m->njnt + i] = axis;
         }
 
         // body data
         for (int i = 0; i < m->nbody * 9; i++) {
-            xmat_float[w * m->nbody * 9 + i] = static_cast<float>(d->xmat[i]);
-            ximat_float[w * m->nbody * 9 + i] = static_cast<float>(d->ximat[i]);
-        }
-        for (int i = 0; i < m->nbody * 3; i++) {
-            xpos_float[w * m->nbody * 3 + i] = static_cast<float>(d->xpos[i]);
-            xipos_float[w * m->nbody * 3 + i] = static_cast<float>(d->xipos[i]);
-        }
-        for (int i = 0; i < m->nbody * 4; i++) {
-            xquat_float[w * m->nbody * 4 + i] = static_cast<float>(d->xquat[i]);
+            xmat[w * m->nbody * 9 + i] = static_cast<float>(d->xmat[i]);
+            ximat[w * m->nbody * 9 + i] = static_cast<float>(d->ximat[i]);
         }
 
-        // geom data
-        for (int i = 0; i < m->ngeom * 3; i++) {
-            geom_xpos_float[w * m->ngeom * 3 + i] = static_cast<float>(d->geom_xpos[i]);
+        for (int i = 0; i < m->nbody; i++) {
+            vec3p xp = {
+                static_cast<float>(d->xpos[i * 3]),
+                static_cast<float>(d->xpos[i * 3 + 1]),
+                static_cast<float>(d->xpos[i * 3 + 2]),
+                0.0f
+            };
+            xpos[w * m->nbody + i] = xp;
+            vec3p xip = {
+                static_cast<float>(d->xipos[i * 3]),
+                static_cast<float>(d->xipos[i * 3 + 1]),
+                static_cast<float>(d->xipos[i * 3 + 2]),
+                0.0f
+            };
+            xipos[w * m->nbody + i] = xip;
+        }
+        for (int i = 0; i < m->nbody; i++) {
+            quat xq = {
+                static_cast<float>(d->xquat[i * 4]),
+                static_cast<float>(d->xquat[i * 4 + 1]),
+                static_cast<float>(d->xquat[i * 4 + 2]),
+                static_cast<float>(d->xquat[i * 4 + 3])
+            };
+            xquat[w * m->nbody + i] = xq;
+        }
+
+        for (int i = 0; i < m->ngeom; i++) {
+            vec3p gpos = {
+                static_cast<float>(d->geom_xpos[i * 3]),
+                static_cast<float>(d->geom_xpos[i * 3 + 1]),
+                static_cast<float>(d->geom_xpos[i * 3 + 2]),
+                0.0f
+            };
+            geom_xpos[w * m->ngeom + i] = gpos;
         }
         for (int i = 0; i < m->ngeom * 9; i++) {
-            geom_xmat_float[w * m->ngeom * 9 + i] = static_cast<float>(d->geom_xmat[i]);
+            geom_xmat[w * m->ngeom * 9 + i] = static_cast<float>(d->geom_xmat[i]);
         }
 
-        // site data
-        for (int i = 0; i < m->nsite * 3; i++) {
-            site_xpos_float[w * m->nsite * 3 + i] = static_cast<float>(d->site_xpos[i]);
+        for (int i = 0; i < m->nsite; i++) {
+            vec3p spos = {
+                static_cast<float>(d->site_xpos[i * 3]),
+                static_cast<float>(d->site_xpos[i * 3 + 1]),
+                static_cast<float>(d->site_xpos[i * 3 + 2]),
+                0.0f
+            };
+            site_xpos[w * m->nsite + i] = spos;
         }
         for (int i = 0; i < m->nsite * 9; i++) {
-            site_xmat_float[w * m->nsite * 9 + i] = static_cast<float>(d->site_xmat[i]);
+            site_xmat[w * m->nsite * 9 + i] = static_cast<float>(d->site_xmat[i]);
         }
     }
 
     cudaMalloc(&cd->qpos, nworlds * m->nq * sizeof(float));
-    cudaMalloc(&cd->mocap_pos, nworlds * m->nmocap * 3 * sizeof(float));
-    cudaMalloc(&cd->mocap_quat, nworlds * m->nmocap * 4 * sizeof(float));
-    cudaMalloc(&cd->xanchor, nworlds * m->njnt * 3 * sizeof(float));
-    cudaMalloc(&cd->xaxis, nworlds * m->njnt * 3 * sizeof(float));
+    cudaMalloc(&cd->mocap_pos, nworlds * m->nmocap * sizeof(vec3p));
+    cudaMalloc(&cd->mocap_quat, nworlds * m->nmocap * sizeof(quat));
+    cudaMalloc(&cd->xanchor, nworlds * m->njnt * sizeof(vec3p));
+    cudaMalloc(&cd->xaxis, nworlds * m->njnt * sizeof(vec3p));
     cudaMalloc(&cd->xmat, nworlds * m->nbody * 9 * sizeof(float));
-    cudaMalloc(&cd->xpos, nworlds * m->nbody * 3 * sizeof(float));
-    cudaMalloc(&cd->xquat, nworlds * m->nbody * 4 * sizeof(float));
-    cudaMalloc(&cd->xipos, nworlds * m->nbody * 3 * sizeof(float));
+    cudaMalloc(&cd->xpos, nworlds * m->nbody * sizeof(vec3p));
+    cudaMalloc(&cd->xquat, nworlds * m->nbody * sizeof(quat));
+    cudaMalloc(&cd->xipos, nworlds * m->nbody * sizeof(vec3p));
     cudaMalloc(&cd->ximat, nworlds * m->nbody * 9 * sizeof(float));
-    cudaMalloc(&cd->geom_xpos, nworlds * m->ngeom * 3 * sizeof(float));
+    cudaMalloc(&cd->geom_xpos, nworlds * m->ngeom * sizeof(vec3p));
     cudaMalloc(&cd->geom_xmat, nworlds * m->ngeom * 9 * sizeof(float));
-    cudaMalloc(&cd->site_xpos, nworlds * m->nsite * 3 * sizeof(float));
+    cudaMalloc(&cd->site_xpos, nworlds * m->nsite * sizeof(vec3p));
     cudaMalloc(&cd->site_xmat, nworlds * m->nsite * 9 * sizeof(float));
 
-    cudaMemcpy(cd->qpos, qpos_float.data(), nworlds * m->nq * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(cd->mocap_pos, mocap_pos_float.data(), nworlds * m->nmocap * 3 * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(cd->mocap_quat, mocap_quat_float.data(), nworlds * m->nmocap * 4 * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(cd->xanchor, xanchor_float.data(), nworlds * m->njnt * 3 * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(cd->xaxis, xaxis_float.data(), nworlds * m->njnt * 3 * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(cd->xmat, xmat_float.data(), nworlds * m->nbody * 9 * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(cd->xpos, xpos_float.data(), nworlds * m->nbody * 3 * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(cd->xquat, xquat_float.data(), nworlds * m->nbody * 4 * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(cd->xipos, xipos_float.data(), nworlds * m->nbody * 3 * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(cd->ximat, ximat_float.data(), nworlds * m->nbody * 9 * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(cd->geom_xpos, geom_xpos_float.data(), nworlds * m->ngeom * 3 * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(cd->geom_xmat, geom_xmat_float.data(), nworlds * m->ngeom * 9 * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(cd->site_xpos, site_xpos_float.data(), nworlds * m->nsite * 3 * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(cd->site_xmat, site_xmat_float.data(), nworlds * m->nsite * 9 * sizeof(float), cudaMemcpyHostToDevice);
-
+    cudaMemcpy(cd->qpos, qpos.data(), nworlds * m->nq * sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy(cd->mocap_pos, mocap_pos.data(), nworlds * m->nmocap * sizeof(vec3p), cudaMemcpyHostToDevice);
+    cudaMemcpy(cd->mocap_quat, mocap_quat.data(), nworlds * m->nmocap * sizeof(quat), cudaMemcpyHostToDevice);
+    cudaMemcpy(cd->xanchor, xanchor.data(), nworlds * m->njnt * sizeof(vec3p), cudaMemcpyHostToDevice);
+    cudaMemcpy(cd->xaxis, xaxis.data(), nworlds * m->njnt * sizeof(vec3p), cudaMemcpyHostToDevice);
+    cudaMemcpy(cd->xmat, xmat.data(), nworlds * m->nbody * 9 * sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy(cd->xpos, xpos.data(), nworlds * m->nbody * sizeof(vec3p), cudaMemcpyHostToDevice);
+    cudaMemcpy(cd->xquat, xquat.data(), nworlds * m->nbody * sizeof(quat), cudaMemcpyHostToDevice);
+    cudaMemcpy(cd->xipos, xipos.data(), nworlds * m->nbody * sizeof(vec3p), cudaMemcpyHostToDevice);
+    cudaMemcpy(cd->ximat, ximat.data(), nworlds * m->nbody * 9 * sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy(cd->geom_xpos, geom_xpos.data(), nworlds * m->ngeom * sizeof(vec3p), cudaMemcpyHostToDevice);
+    cudaMemcpy(cd->geom_xmat, geom_xmat.data(), nworlds * m->ngeom * 9 * sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy(cd->site_xpos, site_xpos.data(), nworlds * m->nsite * sizeof(vec3p), cudaMemcpyHostToDevice);
+    cudaMemcpy(cd->site_xmat, site_xmat.data(), nworlds * m->nsite * 9 * sizeof(float), cudaMemcpyHostToDevice);
     return cd;
 }
 

@@ -25,9 +25,9 @@ void LaunchKinematicsKernel(
 
 __global__ void RootKernel(
     unsigned int n,
-    float* xpos,
-    float* xquat,
-    float* xipos,
+    vec3p* xpos,
+    quat* xquat,
+    vec3p* xipos,
     float* xmat,
     float* ximat);
 
@@ -42,24 +42,24 @@ __global__ void LevelKernel(
     const int* body_jntnum,
     const int* body_parentid,
     const int* body_mocapid,
-    const float* body_pos,
-    const float* body_quat,
-    const float* body_ipos,
-    const float* body_iquat,
+    const vec3p* body_pos,
+    const quat* body_quat,
+    const vec3p* body_ipos,
+    const quat* body_iquat,
     const int* jnt_type,
     const int* jnt_qposadr,
-    const float* jnt_axis,
-    const float* jnt_pos,
+    const vec3p* jnt_axis,
+    const vec3p* jnt_pos,
     const int* body_tree,
     float* qpos,
-    float* mocap_pos,
-    float* mocap_quat,
-    float* xanchor,
-    float* xaxis,
+    vec3p* mocap_pos,
+    quat* mocap_quat,
+    vec3p* xanchor,
+    vec3p* xaxis,
     float* xmat,
-    float* xpos,
-    float* xquat,
-    float* xipos,
+    vec3p* xpos,
+    quat* xquat,
+    vec3p* xipos,
     float* ximat);
 
 __global__ void GeomLocalToGlobalKernel(
@@ -67,11 +67,11 @@ __global__ void GeomLocalToGlobalKernel(
     unsigned int nbody,
     unsigned int ngeom,
     const int* geom_bodyid,
-    const float* geom_pos,
-    const float* geom_quat,
-    const float* xpos,
-    const float* xquat,
-    float* geom_xpos,
+    const vec3p* geom_pos,
+    const quat* geom_quat,
+    const vec3p* xpos,
+    const quat* xquat,
+    vec3p* geom_xpos,
     float* geom_xmat);
 
 __global__ void SiteLocalToGlobalKernel(
@@ -79,11 +79,11 @@ __global__ void SiteLocalToGlobalKernel(
     unsigned int nbody,
     unsigned int nsite,
     const int* site_bodyid,
-    const float* site_pos,
-    const float* site_quat,
-    const float* xpos,
-    const float* xquat,
-    float* site_xpos,
+    const vec3p* site_pos,
+    const quat* site_quat,
+    const vec3p* xpos,
+    const quat* xquat,
+    vec3p* site_xpos,
     float* site_xmat);
 
 __global__ void NoiseInjectionKernel(
