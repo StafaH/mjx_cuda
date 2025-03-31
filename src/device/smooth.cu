@@ -121,25 +121,13 @@ __global__ void RootKernel(
   
   xquat[tid] = {1.0f, 0.0f, 0.0f, 0.0f};
   
-  xmat[tid].m[0] = 1.0f;
-  xmat[tid].m[1] = 0.0f;
-  xmat[tid].m[2] = 0.0f;
-  xmat[tid].m[3] = 0.0f;
-  xmat[tid].m[4] = 1.0f;
-  xmat[tid].m[5] = 0.0f;
-  xmat[tid].m[6] = 0.0f;
-  xmat[tid].m[7] = 0.0f;
-  xmat[tid].m[8] = 1.0f;
-  
-  ximat[tid].m[0] = 1.0f;
-  ximat[tid].m[1] = 0.0f;
-  ximat[tid].m[2] = 0.0f;
-  ximat[tid].m[3] = 0.0f;
-  ximat[tid].m[4] = 1.0f;
-  ximat[tid].m[5] = 0.0f;
-  ximat[tid].m[6] = 0.0f;
-  ximat[tid].m[7] = 0.0f;
-  ximat[tid].m[8] = 1.0f;
+  xmat[tid] = {1.0f, 0.0f, 0.0f,
+               0.0f, 1.0f, 0.0f,
+               0.0f, 0.0f, 1.0f};
+
+  ximat[tid] = {1.0f, 0.0f, 0.0f,
+                0.0f, 1.0f, 0.0f,
+                0.0f, 0.0f, 1.0f};
 }
 
 __global__ void LevelKernel(
@@ -176,117 +164,91 @@ __global__ void LevelKernel(
   unsigned int nodeid = blockIdx.y;
 
   if (tid >= n) return;
-  const int bodyid = body_tree[leveladr + nodeid];
-  const int jntadr = body_jntadr[bodyid];
-  const int jntnum = body_jntnum[bodyid];
-  const unsigned int qpos_offset = tid * nq;
-  const unsigned int body_offset = tid * nbody;
-  const unsigned int jnt_offset = tid * njnt;
+  int bodyid = __ldg(&body_tree[leveladr + nodeid]);
+  int jntadr = __ldg(&body_jntadr[bodyid]);
+  int jntnum = __ldg(&body_jntnum[bodyid]);
+  int qpos_offset = tid * nq;
+  int body_offset = tid * nbody;
+  int jnt_offset = tid * njnt;
 
-  vec3p lxpos = {0.0f, 0.0f, 0.0f, 0.0f};
-  quat lxquat = {0.0f, 0.0f, 0.0f, 0.0f};
+  vec3p pos = {0.0f, 0.0f, 0.0f, 0.0f};
+  quat rot = {0.0f, 0.0f, 0.0f, 0.0f};
 
   if (jntnum == 0) {
-    int pid = body_parentid[bodyid];
-    MulMatVec3(lxpos, xmat[body_offset + pid], body_pos[bodyid]);
-    lxpos += xpos[body_offset + pid];
-    
-    MulQuat(lxquat, xquat[body_offset + pid], body_quat[bodyid]);
+    int pid = __ldg(&body_parentid[bodyid]);
+    MulMatVec3(pos, xmat[body_offset + pid], body_pos[bodyid]);
+    pos += xpos[body_offset + pid];
+    rot = MulQuat(xquat[body_offset + pid], body_quat[bodyid]);
   } 
   else if (jntnum == 1 && jnt_type[jntadr] == mjJNT_FREE) {
-    // Free joint (direct set from qpos)
-    int qadr = jnt_qposadr[jntadr];
-    float* src_qpos = qpos + qpos_offset + qadr;
-    
-    lxpos.x = src_qpos[0];
-    lxpos.y = src_qpos[1];
-    lxpos.z = src_qpos[2];
-    lxquat.w = src_qpos[3];
-    lxquat.x = src_qpos[4];
-    lxquat.y = src_qpos[5];
-    lxquat.z = src_qpos[6];
+    float* src = qpos + qpos_offset + __ldg(&jnt_qposadr[jntadr]);
+    pos = make_vec3p(src[0], src[1], src[2]);
+    rot = {src[3], src[4], src[5], src[6]};
 
-    xanchor[jnt_offset + jntadr] = lxpos;
+    xanchor[jnt_offset + jntadr] = pos;
     xaxis[jnt_offset + jntadr] = jnt_axis[jntadr];
   } 
   else {
-    int pid = body_parentid[bodyid];
-    MulMatVec3(lxpos, xmat[body_offset + pid], body_pos[bodyid]);
-    lxpos += xpos[body_offset + pid];
+    int pid = __ldg(&body_parentid[bodyid]);
+    MulMatVec3(pos, xmat[body_offset + pid], body_pos[bodyid]);
+    pos += xpos[body_offset + pid];
     
-    MulQuat(lxquat, xquat[body_offset + pid], body_quat[bodyid]);
+    rot = MulQuat(xquat[body_offset + pid], body_quat[bodyid]);
 
-    float* curr_qpos = qpos + qpos_offset;
+    // float* curr_qpos = qpos + qpos_offset;
     
     for (int j = 0; j < jntnum; j++) {
       int jid = jntadr + j;
       int qadr = jnt_qposadr[jid];
       int jtype = jnt_type[jid];
       
-      vec3p vec = {0.0f, 0.0f, 0.0f, 0.0f};
-      RotVecQuat(vec, jnt_pos[jid], lxquat);
-      
-      xanchor[jnt_offset + jid] = vec + lxpos;
-
-      RotVecQuat(xaxis[jnt_offset + jid], jnt_axis[jid], lxquat);
+      vec3p anchor = RotVecQuat(jnt_pos[jid], rot) + pos;
+      xanchor[jnt_offset + jid] = anchor;
+      xaxis[jnt_offset + jid] = RotVecQuat(jnt_axis[jid], rot);
 
       switch (jtype) {
         case mjJNT_SLIDE: {
-          float qpos_diff = curr_qpos[qadr] - qpos0[qadr];
-          lxpos += xaxis[jnt_offset + jid] * qpos_diff;
+          pos += xaxis[jnt_offset + jid] * (qpos[qpos_offset + qadr] - qpos0[qadr]);
           break;
         }
 
         case mjJNT_BALL: {
-          quat qloc = {0.0f, 0.0f, 0.0f, 0.0f};
-          qloc.w = curr_qpos[qadr];
-          qloc.x = curr_qpos[qadr+1];
-          qloc.y = curr_qpos[qadr+2];
-          qloc.z = curr_qpos[qadr+3];
-          
-          MulQuat(lxquat, lxquat, qloc);
-          
-          RotVecQuat(vec, jnt_pos[jid], lxquat);
-          lxpos = xanchor[jnt_offset + jid] - vec;
+          quat qloc = {qpos[qpos_offset + qadr],
+                       qpos[qpos_offset + qadr + 1],
+                       qpos[qpos_offset + qadr + 2],
+                       qpos[qpos_offset + qadr + 3]};
+          rot = MulQuat(rot, qloc);
+          pos = anchor - RotVecQuat(jnt_pos[jid], rot);
           break;
         }
 
         case mjJNT_HINGE: {
-          float angle = curr_qpos[qadr] - qpos0[qadr];
-          quat qloc = {0.0f, 0.0f, 0.0f, 0.0f};
-          AxisAngle2Quat(qloc, jnt_axis[jid], angle);
-          
-          MulQuat(lxquat, lxquat, qloc);
-          
-          RotVecQuat(vec, jnt_pos[jid], lxquat);
-          lxpos = xanchor[jnt_offset + jid] - vec;
+          float angle = qpos[qpos_offset + qadr] - qpos0[qadr];
+          float s, c;
+          __sincosf(0.5f * angle, &s, &c);
+          quat qloc = {c,
+                       jnt_axis[jid].x * s,
+                       jnt_axis[jid].y * s,
+                       jnt_axis[jid].z * s};
+          rot = MulQuat(rot, qloc);
+          pos = anchor - RotVecQuat(jnt_pos[jid], rot);
           break;
         }
       }
     }
   }
 
-  float norm = sqrtf(lxquat.w*lxquat.w + lxquat.x*lxquat.x + 
-                     lxquat.y*lxquat.y + lxquat.z*lxquat.z);
-  float invNorm = 1.0f / norm;
-  lxquat.w *= invNorm;
-  lxquat.x *= invNorm;
-  lxquat.y *= invNorm;
-  lxquat.z *= invNorm;
+  NormalizeQuat(rot);
+  xpos[body_offset + bodyid] = pos;
+  xquat[body_offset + bodyid] = rot;
 
-  xquat[body_offset + bodyid] = lxquat;
-  
-  xpos[body_offset + bodyid] = lxpos;
-  
-  Quat2Mat(xmat[body_offset + bodyid], lxquat);
+  Quat2Mat(xmat[body_offset + bodyid], rot);
 
-  vec3p vec = {0.0f, 0.0f, 0.0f, 0.0f};
-  RotVecQuat(vec, body_ipos[bodyid], lxquat);
-  xipos[body_offset + bodyid] = vec + lxpos;
+  vec3p local_ipos = RotVecQuat(body_ipos[bodyid], rot);
+  xipos[body_offset + bodyid] = local_ipos + pos;
 
-  quat quat = {0.0f, 0.0f, 0.0f, 0.0f};
-  MulQuat(quat, lxquat, body_iquat[bodyid]);
-  Quat2Mat(ximat[body_offset + bodyid], quat);
+  quat temp_iquat = MulQuat(rot, body_iquat[bodyid]);
+  Quat2Mat(ximat[body_offset + bodyid], temp_iquat);
 }
 
 __global__ void GeomLocalToGlobalKernel(
@@ -302,20 +264,20 @@ __global__ void GeomLocalToGlobalKernel(
     mat3p* geom_xmat) {
   unsigned int tid = blockIdx.x * blockDim.x + threadIdx.x;
   unsigned int geomid = blockIdx.y;
-
   if (tid >= n) return;
 
-  const int bodyid = geom_bodyid[geomid];
-  const unsigned int body_offset = tid * nbody;
-  const unsigned int geom_offset = tid * ngeom;
+  const int bodyid = __ldg(&geom_bodyid[geomid]);
+  const unsigned int body_offset = tid * nbody + bodyid;
+  const unsigned int geom_offset = tid * ngeom + geomid;
 
-  vec3p vec = {0.0f, 0.0f, 0.0f, 0.0f};
-  RotVecQuat(vec, geom_pos[geomid], xquat[bodyid]);
-  geom_xpos[geom_offset + geomid] = vec + xpos[body_offset + bodyid];
+  const quat qparent = xquat[body_offset];
+  const vec3p pparent = xpos[body_offset];
 
-  quat quat = {0.0f, 0.0f, 0.0f, 0.0f};
-  MulQuat(quat, xquat[bodyid], geom_quat[geomid]);
-  Quat2Mat(geom_xmat[geom_offset + geomid], quat);
+  vec3p rotated_pos = RotVecQuat(geom_pos[geomid], qparent);
+  geom_xpos[geom_offset] = pparent + rotated_pos;
+
+  quat qres = MulQuat(qparent, geom_quat[geomid]);
+  Quat2Mat(geom_xmat[geom_offset], qres);
 }
 
 __global__ void SiteLocalToGlobalKernel(
@@ -331,20 +293,20 @@ __global__ void SiteLocalToGlobalKernel(
     mat3p* site_xmat) {
   unsigned int tid = blockIdx.x * blockDim.x + threadIdx.x;
   unsigned int siteid = blockIdx.y;
-
   if (tid >= n) return;
 
-  const int bodyid = site_bodyid[siteid];
-  const unsigned int body_offset = tid * nbody;
-  const unsigned int site_offset = tid * nsite;
+  const int bodyid = __ldg(&site_bodyid[siteid]);
+  const unsigned int body_offset = tid * nbody + bodyid;
+  const unsigned int site_offset = tid * nsite + siteid;
 
-  vec3p vec = {0.0f, 0.0f, 0.0f, 0.0f};
-  RotVecQuat(vec, site_pos[siteid], xquat[bodyid]);
-  site_xpos[site_offset + siteid] = vec + xpos[body_offset + bodyid];
+  const quat qparent = xquat[body_offset];
+  const vec3p pparent = xpos[body_offset];
 
-  quat quat = {0.0f, 0.0f, 0.0f, 0.0f};
-  MulQuat(quat, xquat[bodyid], site_quat[siteid]);
-  Quat2Mat(site_xmat[site_offset + siteid], quat);
+  vec3p rotated_pos = RotVecQuat(site_pos[siteid], qparent);
+  site_xpos[site_offset] = pparent + rotated_pos;
+
+  quat qres = MulQuat(qparent, site_quat[siteid]);
+  Quat2Mat(site_xmat[site_offset], qres);
 }
 
 // Noise injection kernel
