@@ -108,8 +108,8 @@ __global__ void RootKernel(
     vec3p* xpos,
     quat* xquat,
     vec3p* xipos,
-    float* xmat,
-    float* ximat) {
+    mat3p* xmat,
+    mat3p* ximat) {
   unsigned int tid = blockIdx.x * blockDim.x + threadIdx.x;
 
   if (tid >= n) {
@@ -121,25 +121,25 @@ __global__ void RootKernel(
   
   xquat[tid] = {1.0f, 0.0f, 0.0f, 0.0f};
   
-  xmat[tid * 9] = 1.0f;
-  xmat[tid * 9 + 1] = 0.0f;
-  xmat[tid * 9 + 2] = 0.0f;
-  xmat[tid * 9 + 3] = 0.0f;
-  xmat[tid * 9 + 4] = 1.0f;
-  xmat[tid * 9 + 5] = 0.0f;
-  xmat[tid * 9 + 6] = 0.0f;
-  xmat[tid * 9 + 7] = 0.0f;
-  xmat[tid * 9 + 8] = 1.0f;
+  xmat[tid].m[0] = 1.0f;
+  xmat[tid].m[1] = 0.0f;
+  xmat[tid].m[2] = 0.0f;
+  xmat[tid].m[3] = 0.0f;
+  xmat[tid].m[4] = 1.0f;
+  xmat[tid].m[5] = 0.0f;
+  xmat[tid].m[6] = 0.0f;
+  xmat[tid].m[7] = 0.0f;
+  xmat[tid].m[8] = 1.0f;
   
-  ximat[tid * 9] = 1.0f;
-  ximat[tid * 9 + 1] = 0.0f;
-  ximat[tid * 9 + 2] = 0.0f;
-  ximat[tid * 9 + 3] = 0.0f;
-  ximat[tid * 9 + 4] = 1.0f;
-  ximat[tid * 9 + 5] = 0.0f;
-  ximat[tid * 9 + 6] = 0.0f;
-  ximat[tid * 9 + 7] = 0.0f;
-  ximat[tid * 9 + 8] = 1.0f;
+  ximat[tid].m[0] = 1.0f;
+  ximat[tid].m[1] = 0.0f;
+  ximat[tid].m[2] = 0.0f;
+  ximat[tid].m[3] = 0.0f;
+  ximat[tid].m[4] = 1.0f;
+  ximat[tid].m[5] = 0.0f;
+  ximat[tid].m[6] = 0.0f;
+  ximat[tid].m[7] = 0.0f;
+  ximat[tid].m[8] = 1.0f;
 }
 
 __global__ void LevelKernel(
@@ -167,11 +167,11 @@ __global__ void LevelKernel(
     quat* mocap_quat,
     vec3p* xanchor,
     vec3p* xaxis,
-    float* xmat,
+    mat3p* xmat,
     vec3p* xpos,
     quat* xquat,
     vec3p* xipos,
-    float* ximat) {
+    mat3p* ximat) {
   unsigned int tid = blockIdx.x * blockDim.x + threadIdx.x;
   unsigned int nodeid = blockIdx.y;
 
@@ -188,7 +188,7 @@ __global__ void LevelKernel(
 
   if (jntnum == 0) {
     int pid = body_parentid[bodyid];
-    MulMatVec3(lxpos, xmat + (body_offset * 9 + pid * 9), body_pos[bodyid]);
+    MulMatVec3(lxpos, xmat[body_offset + pid], body_pos[bodyid]);
     lxpos += xpos[body_offset + pid];
     
     MulQuat(lxquat, xquat[body_offset + pid], body_quat[bodyid]);
@@ -211,7 +211,7 @@ __global__ void LevelKernel(
   } 
   else {
     int pid = body_parentid[bodyid];
-    MulMatVec3(lxpos, xmat + (body_offset * 9 + pid * 9), body_pos[bodyid]);
+    MulMatVec3(lxpos, xmat[body_offset + pid], body_pos[bodyid]);
     lxpos += xpos[body_offset + pid];
     
     MulQuat(lxquat, xquat[body_offset + pid], body_quat[bodyid]);
@@ -278,7 +278,7 @@ __global__ void LevelKernel(
   
   xpos[body_offset + bodyid] = lxpos;
   
-  Quat2Mat(xmat + (body_offset * 9 + bodyid * 9), lxquat);
+  Quat2Mat(xmat[body_offset + bodyid], lxquat);
 
   vec3p vec = {0.0f, 0.0f, 0.0f, 0.0f};
   RotVecQuat(vec, body_ipos[bodyid], lxquat);
@@ -286,7 +286,7 @@ __global__ void LevelKernel(
 
   quat quat = {0.0f, 0.0f, 0.0f, 0.0f};
   MulQuat(quat, lxquat, body_iquat[bodyid]);
-  Quat2Mat(ximat + (body_offset * 9 + bodyid * 9), quat);
+  Quat2Mat(ximat[body_offset + bodyid], quat);
 }
 
 __global__ void GeomLocalToGlobalKernel(
@@ -299,7 +299,7 @@ __global__ void GeomLocalToGlobalKernel(
     const vec3p* xpos,
     const quat* xquat,
     vec3p* geom_xpos,
-    float* geom_xmat) {
+    mat3p* geom_xmat) {
   unsigned int tid = blockIdx.x * blockDim.x + threadIdx.x;
   unsigned int geomid = blockIdx.y;
 
@@ -315,7 +315,7 @@ __global__ void GeomLocalToGlobalKernel(
 
   quat quat = {0.0f, 0.0f, 0.0f, 0.0f};
   MulQuat(quat, xquat[bodyid], geom_quat[geomid]);
-  Quat2Mat(geom_xmat + geom_offset * 9 + geomid * 9, quat);
+  Quat2Mat(geom_xmat[geom_offset + geomid], quat);
 }
 
 __global__ void SiteLocalToGlobalKernel(
@@ -328,7 +328,7 @@ __global__ void SiteLocalToGlobalKernel(
     const vec3p* xpos,
     const quat* xquat,
     vec3p* site_xpos,
-    float* site_xmat) {
+    mat3p* site_xmat) {
   unsigned int tid = blockIdx.x * blockDim.x + threadIdx.x;
   unsigned int siteid = blockIdx.y;
 
@@ -344,7 +344,7 @@ __global__ void SiteLocalToGlobalKernel(
 
   quat quat = {0.0f, 0.0f, 0.0f, 0.0f};
   MulQuat(quat, xquat[bodyid], site_quat[siteid]);
-  Quat2Mat(site_xmat + site_offset * 9 + siteid * 9, quat);
+  Quat2Mat(site_xmat[site_offset + siteid], quat);
 }
 
 // Noise injection kernel

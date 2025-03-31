@@ -28,8 +28,8 @@ __global__ void RootKernel(
     vec3p* xpos,
     quat* xquat,
     vec3p* xipos,
-    float* xmat,
-    float* ximat);
+    mat3p* xmat,
+    mat3p* ximat);
 
 __global__ void LevelKernel(
     unsigned int n,
@@ -56,11 +56,11 @@ __global__ void LevelKernel(
     quat* mocap_quat,
     vec3p* xanchor,
     vec3p* xaxis,
-    float* xmat,
+    mat3p* xmat,
     vec3p* xpos,
     quat* xquat,
     vec3p* xipos,
-    float* ximat);
+    mat3p* ximat);
 
 __global__ void GeomLocalToGlobalKernel(
     unsigned int n,
@@ -72,7 +72,7 @@ __global__ void GeomLocalToGlobalKernel(
     const vec3p* xpos,
     const quat* xquat,
     vec3p* geom_xpos,
-    float* geom_xmat);
+    mat3p* geom_xmat);
 
 __global__ void SiteLocalToGlobalKernel(
     unsigned int n,
@@ -84,7 +84,7 @@ __global__ void SiteLocalToGlobalKernel(
     const vec3p* xpos,
     const quat* xquat,
     vec3p* site_xpos,
-    float* site_xmat);
+    mat3p* site_xmat);
 
 __global__ void NoiseInjectionKernel(
     unsigned int n,

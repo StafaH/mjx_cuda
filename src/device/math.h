@@ -182,24 +182,24 @@ inline __device__ void RotVecQuat(vec3p& res, const vec3p& vec, const quat& q) {
 }
 
 // convert quaternion to 3D rotation matrix with quat type
-inline __device__ void Quat2Mat(float* res, const quat& q) {
-  res[0] = q.w*q.w + q.x*q.x - q.y*q.y - q.z*q.z;
-  res[4] = q.w*q.w - q.x*q.x + q.y*q.y - q.z*q.z;
-  res[8] = q.w*q.w - q.x*q.x - q.y*q.y + q.z*q.z;
+inline __device__ void Quat2Mat(mat3p& res, const quat& q) {
+  res.m[0] = q.w*q.w + q.x*q.x - q.y*q.y - q.z*q.z;
+  res.m[4] = q.w*q.w - q.x*q.x + q.y*q.y - q.z*q.z;
+  res.m[8] = q.w*q.w - q.x*q.x - q.y*q.y + q.z*q.z;
 
-  res[1] = 2.0f * (q.x*q.y - q.w*q.z);
-  res[2] = 2.0f * (q.x*q.z + q.w*q.y);
-  res[3] = 2.0f * (q.x*q.y + q.w*q.z);
-  res[5] = 2.0f * (q.y*q.z - q.w*q.x);
-  res[6] = 2.0f * (q.x*q.z - q.w*q.y);
-  res[7] = 2.0f * (q.y*q.z + q.w*q.x);
+  res.m[1] = 2.0f * (q.x*q.y - q.w*q.z);
+  res.m[2] = 2.0f * (q.x*q.z + q.w*q.y);
+  res.m[3] = 2.0f * (q.x*q.y + q.w*q.z);
+  res.m[5] = 2.0f * (q.y*q.z - q.w*q.x);
+  res.m[6] = 2.0f * (q.x*q.z - q.w*q.y);
+  res.m[7] = 2.0f * (q.y*q.z + q.w*q.x);
 }
 
 // multiply matrix and vector with vec3p type
-inline __device__ void MulMatVec3(vec3p& res, const float* mat, const vec3p& vec) {
-  res.x = mat[0]*vec.x + mat[1]*vec.y + mat[2]*vec.z;
-  res.y = mat[3]*vec.x + mat[4]*vec.y + mat[5]*vec.z;
-  res.z = mat[6]*vec.x + mat[7]*vec.y + mat[8]*vec.z;
+inline __device__ void MulMatVec3(vec3p& res, const mat3p& mat, const vec3p& vec) {
+  res.x = mat.m[0]*vec.x + mat.m[1]*vec.y + mat.m[2]*vec.z;
+  res.y = mat.m[3]*vec.x + mat.m[4]*vec.y + mat.m[5]*vec.z;
+  res.z = mat.m[6]*vec.x + mat.m[7]*vec.y + mat.m[8]*vec.z;
 }
 
 // normalize quaternion

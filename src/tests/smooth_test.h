@@ -75,12 +75,12 @@ private:
         vec3p* cpu_xpos = new vec3p[model->nbody];
         quat* cpu_xquat = new quat[model->nbody];
         vec3p* cpu_xipos = new vec3p[model->nbody];
-        float* cpu_xmat = new float[model->nbody * 9];
-        float* cpu_ximat = new float[model->nbody * 9];
+        mat3p* cpu_xmat = new mat3p[model->nbody];
+        mat3p* cpu_ximat = new mat3p[model->nbody];
         vec3p* cpu_geom_xpos = new vec3p[model->ngeom];
-        float* cpu_geom_xmat = new float[model->ngeom * 9];
+        mat3p* cpu_geom_xmat = new mat3p[model->ngeom];
         vec3p* cpu_site_xpos = new vec3p[model->nsite];
-        float* cpu_site_xmat = new float[model->nsite * 9];
+        mat3p* cpu_site_xmat = new mat3p[model->nsite];
 
         // Copy data from device to CPU arrays
         cudaMemcpy(cpu_xanchor, cuda_data->xanchor, model->njnt * sizeof(vec3p), cudaMemcpyDeviceToHost);
@@ -88,12 +88,12 @@ private:
         cudaMemcpy(cpu_xpos, cuda_data->xpos, model->nbody * sizeof(vec3p), cudaMemcpyDeviceToHost);
         cudaMemcpy(cpu_xquat, cuda_data->xquat, model->nbody * sizeof(quat), cudaMemcpyDeviceToHost);
         cudaMemcpy(cpu_xipos, cuda_data->xipos, model->nbody * sizeof(vec3p), cudaMemcpyDeviceToHost);
-        cudaMemcpy(cpu_xmat, cuda_data->xmat, model->nbody * 9 * sizeof(float), cudaMemcpyDeviceToHost);
-        cudaMemcpy(cpu_ximat, cuda_data->ximat, model->nbody * 9 * sizeof(float), cudaMemcpyDeviceToHost);
+        cudaMemcpy(cpu_xmat, cuda_data->xmat, model->nbody * sizeof(mat3p), cudaMemcpyDeviceToHost);
+        cudaMemcpy(cpu_ximat, cuda_data->ximat, model->nbody * sizeof(mat3p), cudaMemcpyDeviceToHost);
         cudaMemcpy(cpu_geom_xpos, cuda_data->geom_xpos, model->ngeom * sizeof(vec3p), cudaMemcpyDeviceToHost);
-        cudaMemcpy(cpu_geom_xmat, cuda_data->geom_xmat, model->ngeom * 9 * sizeof(float), cudaMemcpyDeviceToHost);
+        cudaMemcpy(cpu_geom_xmat, cuda_data->geom_xmat, model->ngeom * sizeof(mat3p), cudaMemcpyDeviceToHost);
         cudaMemcpy(cpu_site_xpos, cuda_data->site_xpos, model->nsite * sizeof(vec3p), cudaMemcpyDeviceToHost);
-        cudaMemcpy(cpu_site_xmat, cuda_data->site_xmat, model->nsite * 9 * sizeof(float), cudaMemcpyDeviceToHost);
+        cudaMemcpy(cpu_site_xmat, cuda_data->site_xmat, model->nsite * sizeof(mat3p), cudaMemcpyDeviceToHost);
 
         cudaDeviceSynchronize();
 
@@ -144,8 +144,8 @@ private:
             }
 
             for (int j = 0; j < 9 && passed; j++) {
-                if (std::abs(cpu_xmat[i * 9 + j] - data->xmat[i * 9 + j]) > TOLERANCE ||
-                    std::abs(cpu_ximat[i * 9 + j] - data->ximat[i * 9 + j]) > TOLERANCE) {
+                if (std::abs(cpu_xmat[i].m[j] - data->xmat[i * 9 + j]) > TOLERANCE ||
+                    std::abs(cpu_ximat[i].m[j] - data->ximat[i * 9 + j]) > TOLERANCE) {
                     std::cerr << "xmat mismatch at body " << i << std::endl;
                     passed = false;
                     break;
@@ -163,7 +163,7 @@ private:
                 break;
             }
             for (int j = 0; j < 9 && passed; j++) {
-                if (std::abs(cpu_geom_xmat[i * 9 + j] - data->geom_xmat[i * 9 + j]) > TOLERANCE) {
+                if (std::abs(cpu_geom_xmat[i].m[j] - data->geom_xmat[i * 9 + j]) > TOLERANCE) {
                     std::cerr << "geom_xmat mismatch at geom " << i << std::endl;
                     passed = false;
                     break;
@@ -181,7 +181,7 @@ private:
                 break;
             }
             for (int j = 0; j < 9 && passed; j++) {
-                if (std::abs(cpu_site_xmat[i * 9 + j] - data->site_xmat[i * 9 + j]) > TOLERANCE) {
+                if (std::abs(cpu_site_xmat[i].m[j] - data->site_xmat[i * 9 + j]) > TOLERANCE) {
                     std::cerr << "site_xmat mismatch at site " << i << std::endl;
                     passed = false;
                     break;
