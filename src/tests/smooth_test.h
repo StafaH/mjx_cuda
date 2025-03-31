@@ -129,41 +129,41 @@ private:
             }
         }
 
-        // // Compare geometry arrays
-        // for (int i = 0; i < model->ngeom && passed; i++) {
-        //     for (int j = 0; j < 3; j++) {
-        //         if (std::abs(cpu_geom_xpos[i * 3 + j] - data->geom_xpos[i * 3 + j]) > TOLERANCE) {
-        //             std::cerr << "Geom position mismatch at " << i << std::endl;
-        //             passed = false;
-        //             break;
-        //         }
-        //     }
-        //     for (int j = 0; j < 9 && passed; j++) {
-        //         if (std::abs(cpu_geom_xmat[i * 9 + j] - data->geom_xmat[i * 9 + j]) > TOLERANCE) {
-        //             std::cerr << "Geom matrix mismatch at " << i << std::endl;
-        //             passed = false;
-        //             break;
-        //         }
-        //     }
-        // }
+        // Compare geometry arrays
+        for (int i = 0; i < model->ngeom && passed; i++) {
+            for (int j = 0; j < 3; j++) {
+                if (std::abs(cpu_geom_xpos[i * 3 + j] - data->geom_xpos[i * 3 + j]) > TOLERANCE) {
+                    std::cerr << "Geom position mismatch at " << i << std::endl;
+                    passed = false;
+                    break;
+                }
+            }
+            for (int j = 0; j < 9 && passed; j++) {
+                if (std::abs(cpu_geom_xmat[i * 9 + j] - data->geom_xmat[i * 9 + j]) > TOLERANCE) {
+                    std::cerr << "Geom matrix mismatch at " << i << std::endl;
+                    passed = false;
+                    break;
+                }
+            }
+        }
 
-        // // Compare site arrays
-        // for (int i = 0; i < model->nsite && passed; i++) {
-        //     for (int j = 0; j < 3; j++) {
-        //         if (std::abs(cpu_site_xpos[i * 3 + j] - data->site_xpos[i * 3 + j]) > TOLERANCE) {
-        //             std::cerr << "Site position mismatch at " << i << std::endl;
-        //             passed = false;
-        //             break;
-        //         }
-        //     }
-        //     for (int j = 0; j < 9 && passed; j++) {
-        //         if (std::abs(cpu_site_xmat[i * 9 + j] - data->site_xmat[i * 9 + j]) > TOLERANCE) {
-        //             std::cerr << "Site matrix mismatch at " << i << std::endl;
-        //             passed = false;
-        //             break;
-        //         }
-        //     }
-        // }
+        // Compare site arrays
+        for (int i = 0; i < model->nsite && passed; i++) {
+            for (int j = 0; j < 3; j++) {
+                if (std::abs(cpu_site_xpos[i * 3 + j] - data->site_xpos[i * 3 + j]) > TOLERANCE) {
+                    std::cerr << "Site position mismatch at " << i << std::endl;
+                    passed = false;
+                    break;
+                }
+            }
+            for (int j = 0; j < 9 && passed; j++) {
+                if (std::abs(cpu_site_xmat[i * 9 + j] - data->site_xmat[i * 9 + j]) > TOLERANCE) {
+                    std::cerr << "Site matrix mismatch at " << i << std::endl;
+                    passed = false;
+                    break;
+                }
+            }
+        }
 
         // Free CPU arrays
         delete[] cpu_xanchor;

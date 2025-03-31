@@ -4,14 +4,6 @@
 #include <cuda_runtime.h>
 #include <cstring>
 
-inline __device__ void Zero(float* x, int n) {
-  memset(x, 0, n * sizeof(float));
-}
-
-inline __device__ void Copy(float* dst, const float* src, int n) {
-  memcpy(dst, src, n * sizeof(float));
-}
-
 inline __device__ void Normalize(float* x, int n) {
   float norm = 0.0f;
   for (int i = 0; i < n; ++i) {

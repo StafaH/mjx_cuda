@@ -117,29 +117,37 @@ __global__ void RootKernel(
     return;
   }
 
-  const unsigned int pos_offset = tid * 3;
-  const unsigned int quat_offset = tid * 4;
-  const unsigned int mat_offset = tid * 9;
+  xpos[tid * 3] = 0.0f;
+  xpos[tid * 3 + 1] = 0.0f;
+  xpos[tid * 3 + 2] = 0.0f;
+  xipos[tid * 3] = 0.0f;
+  xipos[tid * 3 + 1] = 0.0f;
+  xipos[tid * 3 + 2] = 0.0f;
   
-  float* batch_xpos = xpos + pos_offset;
-  float* batch_xquat = xquat + quat_offset;
-  float* batch_xipos = xipos + pos_offset;
-  float* batch_xmat = xmat + mat_offset;
-  float* batch_ximat = ximat + mat_offset;
-
-  batch_xpos[0] = batch_xpos[1] = batch_xpos[2] = 0.0f;
-  batch_xipos[0] = batch_xipos[1] = batch_xipos[2] = 0.0f;
+  xquat[tid * 4] = 1.0f;
+  xquat[tid * 4 + 1] = 0.0f;
+  xquat[tid * 4 + 2] = 0.0f;
+  xquat[tid * 4 + 3] = 0.0f;
   
-  batch_xquat[0] = 1.0f;
-  batch_xquat[1] = batch_xquat[2] = batch_xquat[3] = 0.0f;
+  xmat[tid * 9] = 1.0f;
+  xmat[tid * 9 + 1] = 0.0f;
+  xmat[tid * 9 + 2] = 0.0f;
+  xmat[tid * 9 + 3] = 0.0f;
+  xmat[tid * 9 + 4] = 1.0f;
+  xmat[tid * 9 + 5] = 0.0f;
+  xmat[tid * 9 + 6] = 0.0f;
+  xmat[tid * 9 + 7] = 0.0f;
+  xmat[tid * 9 + 8] = 1.0f;
   
-  batch_xmat[0] = batch_xmat[4] = batch_xmat[8] = 1.0f;
-  batch_xmat[1] = batch_xmat[2] = batch_xmat[3] = 0.0f;
-  batch_xmat[5] = batch_xmat[6] = batch_xmat[7] = 0.0f;
-  
-  batch_ximat[0] = batch_ximat[4] = batch_ximat[8] = 1.0f;
-  batch_ximat[1] = batch_ximat[2] = batch_ximat[3] = 0.0f;
-  batch_ximat[5] = batch_ximat[6] = batch_ximat[7] = 0.0f;
+  ximat[tid * 9] = 1.0f;
+  ximat[tid * 9 + 1] = 0.0f;
+  ximat[tid * 9 + 2] = 0.0f;
+  ximat[tid * 9 + 3] = 0.0f;
+  ximat[tid * 9 + 4] = 1.0f;
+  ximat[tid * 9 + 5] = 0.0f;
+  ximat[tid * 9 + 6] = 0.0f;
+  ximat[tid * 9 + 7] = 0.0f;
+  ximat[tid * 9 + 8] = 1.0f;
 }
 
 __global__ void LevelKernel(
@@ -176,41 +184,24 @@ __global__ void LevelKernel(
   unsigned int nodeid = blockIdx.y;
 
   if (tid >= n) return;
-
-  int bodyid = body_tree[leveladr + nodeid];
-  
+  const int bodyid = body_tree[leveladr + nodeid];
   const int jntadr = body_jntadr[bodyid];
   const int jntnum = body_jntnum[bodyid];
-  
   const unsigned int qpos_offset = tid * nq;
   const unsigned int body_offset = tid * nbody;
   const unsigned int jnt_offset = tid * njnt;
-  
-  float* batch_xanchor = xanchor + (jnt_offset * 3);
-  float* batch_xaxis = xaxis + (jnt_offset * 3);
-  float* batch_xmat = xmat + (body_offset * 9);
-  float* batch_xpos = xpos + (body_offset * 3);
-  float* batch_xquat = xquat + (body_offset * 4);
-  float* batch_xipos = xipos + (body_offset * 3);
-  float* batch_ximat = ximat + (body_offset * 9);
-  
+
   float lxpos[3] = {0.0f, 0.0f, 0.0f};
   float lxquat[4] = {0.0f, 0.0f, 0.0f, 0.0f};
 
   if (jntnum == 0) {
     int pid = body_parentid[bodyid];
-    const float* bodypos = body_pos + (3 * bodyid);
-    const float* bodyquat = body_quat + (4 * bodyid);
-    float* pid_xmat = batch_xmat + (9 * pid);
-    float* pid_xpos = batch_xpos + (3 * pid);
-    float* pid_xquat = batch_xquat + (4 * pid);
-
-    MulMatVec3(lxpos, pid_xmat, bodypos);
-    lxpos[0] += pid_xpos[0];
-    lxpos[1] += pid_xpos[1];
-    lxpos[2] += pid_xpos[2];
+    MulMatVec3(lxpos, xmat + (body_offset * 9 + pid * 9), body_pos + (3 * bodyid));
+    lxpos[0] += xpos[body_offset * 3 + pid * 3];
+    lxpos[1] += xpos[body_offset * 3 + pid * 3 + 1];
+    lxpos[2] += xpos[body_offset * 3 + pid * 3 + 2];
     
-    MulQuat(lxquat, pid_xquat, bodyquat);
+    MulQuat(lxquat, xquat + (body_offset * 4 + pid * 4), body_quat + (4 * bodyid));
   } 
   else if (jntnum == 1 && jnt_type[jntadr] == mjJNT_FREE) {
     // Free joint (direct set from qpos)
@@ -233,31 +224,25 @@ __global__ void LevelKernel(
     lxquat[2] *= invNorm;
     lxquat[3] *= invNorm;
 
-    float* jnt_anchor = batch_xanchor + (3 * jntadr);
-    float* jnt_ax = batch_xaxis + (3 * jntadr);
-    const float* joint_axis = jnt_axis + (3 * jntadr);
-    
+    float* jnt_anchor = xanchor + (jnt_offset * 3 + jntadr * 3);
     jnt_anchor[0] = lxpos[0];
     jnt_anchor[1] = lxpos[1];
     jnt_anchor[2] = lxpos[2];
+
+    const float* joint_axis = jnt_axis + (3 * jntadr);
+    float* jnt_ax = xaxis + (jnt_offset * 3 + jntadr * 3);
     jnt_ax[0] = joint_axis[0];
     jnt_ax[1] = joint_axis[1];
     jnt_ax[2] = joint_axis[2];
   } 
   else {
     int pid = body_parentid[bodyid];
-    const float* bodypos = body_pos + (3 * bodyid);
-    const float* bodyquat = body_quat + (4 * bodyid);
-    float* pid_xmat = batch_xmat + (9 * pid);
-    float* pid_xpos = batch_xpos + (3 * pid);
-    float* pid_xquat = batch_xquat + (4 * pid);
-
-    MulMatVec3(lxpos, pid_xmat, bodypos);
-    lxpos[0] += pid_xpos[0];
-    lxpos[1] += pid_xpos[1];
-    lxpos[2] += pid_xpos[2];
+    MulMatVec3(lxpos, xmat + (body_offset * 9 + pid * 9), body_pos + (3 * bodyid));
+    lxpos[0] += xpos[body_offset * 3 + pid * 3];
+    lxpos[1] += xpos[body_offset * 3 + pid * 3 + 1];
+    lxpos[2] += xpos[body_offset * 3 + pid * 3 + 2];
     
-    MulQuat(lxquat, pid_xquat, bodyquat);
+    MulQuat(lxquat, xquat + (body_offset * 4 + pid * 4), body_quat + (4 * bodyid));
 
     float* curr_qpos = qpos + qpos_offset;
     
@@ -267,18 +252,15 @@ __global__ void LevelKernel(
       int jtype = jnt_type[jid];
       
       float vec[3];
-      const float* jnt_pos_ptr = jnt_pos + (3 * jid);
-      float* jnt_anchor = batch_xanchor + (3 * jid);
-      float* jnt_ax = batch_xaxis + (3 * jid);
-      const float* joint_axis = jnt_axis + (3 * jid);
+      RotVecQuat(vec, jnt_pos + (3 * jid), lxquat);
       
-      RotVecQuat(vec, jnt_pos_ptr, lxquat);
-      
+      float* jnt_anchor = xanchor + (jnt_offset * 3 + jid * 3);
       jnt_anchor[0] = vec[0] + lxpos[0];
       jnt_anchor[1] = vec[1] + lxpos[1];
       jnt_anchor[2] = vec[2] + lxpos[2];
 
-      RotVecQuat(jnt_ax, joint_axis, lxquat);
+      float* jnt_ax = xaxis + (jnt_offset * 3 + jid * 3);
+      RotVecQuat(jnt_ax, jnt_axis + (3 * jid), lxquat);
 
       switch (jtype) {
         case mjJNT_SLIDE: {
@@ -304,7 +286,7 @@ __global__ void LevelKernel(
           lxquat[2] = new_quat[2];
           lxquat[3] = new_quat[3];
           
-          RotVecQuat(vec, jnt_pos_ptr, lxquat);
+          RotVecQuat(vec, jnt_pos + (3 * jid), lxquat);
           lxpos[0] = jnt_anchor[0] - vec[0];
           lxpos[1] = jnt_anchor[1] - vec[1];
           lxpos[2] = jnt_anchor[2] - vec[2];
@@ -317,6 +299,7 @@ __global__ void LevelKernel(
           
           float s = sinf(angle * 0.5f);
           qloc[0] = cosf(angle * 0.5f);
+          const float* joint_axis = jnt_axis + (3 * jid);
           qloc[1] = joint_axis[0] * s;
           qloc[2] = joint_axis[1] * s;
           qloc[3] = joint_axis[2] * s;
@@ -329,7 +312,7 @@ __global__ void LevelKernel(
           lxquat[2] = new_quat[2];
           lxquat[3] = new_quat[3];
           
-          RotVecQuat(vec, jnt_pos_ptr, lxquat);
+          RotVecQuat(vec, jnt_pos + (3 * jid), lxquat);
           lxpos[0] = jnt_anchor[0] - vec[0];
           lxpos[1] = jnt_anchor[1] - vec[1];
           lxpos[2] = jnt_anchor[2] - vec[2];
@@ -347,36 +330,29 @@ __global__ void LevelKernel(
   lxquat[2] *= invNorm;
   lxquat[3] *= invNorm;
 
-  float* body_xquat = batch_xquat + (4 * bodyid);
-  float* body_xpos = batch_xpos + (3 * bodyid);
-  float* body_xmat = batch_xmat + (9 * bodyid);
-  
+  float* body_xquat = xquat + (body_offset * 4 + bodyid * 4);
   body_xquat[0] = lxquat[0];
   body_xquat[1] = lxquat[1];
   body_xquat[2] = lxquat[2];
   body_xquat[3] = lxquat[3];
   
+  float* body_xpos = xpos + (body_offset * 3 + bodyid * 3);
   body_xpos[0] = lxpos[0];
   body_xpos[1] = lxpos[1];
   body_xpos[2] = lxpos[2];
   
-  Quat2Mat(body_xmat, lxquat);
+  Quat2Mat(xmat + (body_offset * 9 + bodyid * 9), lxquat);
 
   float vec[3];
-  const float* body_ipos_ptr = body_ipos + (3 * bodyid);
-  float* body_xipos = batch_xipos + (3 * bodyid);
-  
-  RotVecQuat(vec, body_ipos_ptr, lxquat);
+  RotVecQuat(vec, body_ipos + (3 * bodyid), lxquat);
+  float* body_xipos = xipos + (body_offset * 3 + bodyid * 3);
   body_xipos[0] = vec[0] + lxpos[0];
   body_xipos[1] = vec[1] + lxpos[1];
   body_xipos[2] = vec[2] + lxpos[2];
 
   float quat[4];
-  const float* body_iquat_ptr = body_iquat + (4 * bodyid);
-  float* body_ximat = batch_ximat + (9 * bodyid);
-  
-  MulQuat(quat, lxquat, body_iquat_ptr);
-  Quat2Mat(body_ximat, quat);
+  MulQuat(quat, lxquat, body_iquat + (4 * bodyid));
+  Quat2Mat(ximat + (body_offset * 9 + bodyid * 9), quat);
 }
 
 __global__ void GeomLocalToGlobalKernel(
@@ -391,34 +367,23 @@ __global__ void GeomLocalToGlobalKernel(
     float* geom_xpos,
     float* geom_xmat) {
   unsigned int tid = blockIdx.x * blockDim.x + threadIdx.x;
+  unsigned int geomid = blockIdx.y;
 
   if (tid >= n) return;
 
+  const int bodyid = geom_bodyid[geomid];
   const unsigned int body_offset = tid * nbody;
   const unsigned int geom_offset = tid * ngeom;
-  
-  const float* batch_xpos = xpos + body_offset * 3;
-  const float* batch_xquat = xquat + body_offset * 4;
-  float* batch_geom_xpos = geom_xpos + geom_offset * 3;
-  float* batch_geom_xmat = geom_xmat + geom_offset * 9;
 
-  for (int i = 0; i < ngeom; i++) {
-    int bodyid = geom_bodyid[i];
-    const float* body_xquat = batch_xquat + 4 * bodyid;
-    const float* body_xpos = batch_xpos + 3 * bodyid;
-    
-    float vec[3];
-    RotVecQuat(vec, geom_pos + 3 * i, body_xquat);
-    
-    float* geom_xpos_i = batch_geom_xpos + 3 * i;
-    geom_xpos_i[0] = vec[0] + body_xpos[0];
-    geom_xpos_i[1] = vec[1] + body_xpos[1];
-    geom_xpos_i[2] = vec[2] + body_xpos[2];
+  float vec[3];
+  RotVecQuat(vec, geom_pos + 3 * geomid, xquat + 4 * bodyid);
+  geom_xpos[tid * ngeom * 3 + geomid * 3] = vec[0] + xpos[body_offset * 3 + bodyid * 3];
+  geom_xpos[tid * ngeom * 3 + geomid * 3 + 1] = vec[1] + xpos[body_offset * 3 + bodyid * 3 + 1];
+  geom_xpos[tid * ngeom * 3 + geomid * 3 + 2] = vec[2] + xpos[body_offset * 3 + bodyid * 3 + 2];
 
-    float quat[4];
-    MulQuat(quat, body_xquat, geom_quat + 4 * i);
-    Quat2Mat(batch_geom_xmat + 9 * i, quat);
-  }
+  float quat[4];
+  MulQuat(quat, xquat + 4 * bodyid, geom_quat + 4 * geomid);
+  Quat2Mat(geom_xmat + geom_offset * 9 + geomid * 9, quat);
 }
 
 __global__ void SiteLocalToGlobalKernel(
@@ -433,34 +398,23 @@ __global__ void SiteLocalToGlobalKernel(
     float* site_xpos,
     float* site_xmat) {
   unsigned int tid = blockIdx.x * blockDim.x + threadIdx.x;
+  unsigned int siteid = blockIdx.y;
 
   if (tid >= n) return;
 
+  const int bodyid = site_bodyid[siteid];
   const unsigned int body_offset = tid * nbody;
   const unsigned int site_offset = tid * nsite;
-  
-  const float* batch_xpos = xpos + body_offset * 3;
-  const float* batch_xquat = xquat + body_offset * 4;
-  float* batch_site_xpos = site_xpos + site_offset * 3;
-  float* batch_site_xmat = site_xmat + site_offset * 9;
 
-  for (int i = 0; i < nsite; i++) {
-    int bodyid = site_bodyid[i];
-    const float* body_xquat = batch_xquat + 4 * bodyid;
-    const float* body_xpos = batch_xpos + 3 * bodyid;
-    
-    float vec[3];
-    RotVecQuat(vec, site_pos + 3 * i, body_xquat);
-    
-    float* site_xpos_i = batch_site_xpos + 3 * i;
-    site_xpos_i[0] = vec[0] + body_xpos[0];
-    site_xpos_i[1] = vec[1] + body_xpos[1];
-    site_xpos_i[2] = vec[2] + body_xpos[2];
+  float vec[3];
+  RotVecQuat(vec, site_pos + 3 * siteid, xquat + 4 * bodyid);
+  site_xpos[tid * nsite * 3 + siteid * 3] = vec[0] + xpos[body_offset * 3 + bodyid * 3];
+  site_xpos[tid * nsite * 3 + siteid * 3 + 1] = vec[1] + xpos[body_offset * 3 + bodyid * 3 + 1];
+  site_xpos[tid * nsite * 3 + siteid * 3 + 2] = vec[2] + xpos[body_offset * 3 + bodyid * 3 + 2];
 
-    float quat[4];
-    MulQuat(quat, body_xquat, site_quat + 4 * i);
-    Quat2Mat(batch_site_xmat + 9 * i, quat);
-  }
+  float quat[4];
+  MulQuat(quat, xquat + 4 * bodyid, site_quat + 4 * siteid);
+  Quat2Mat(site_xmat + site_offset * 9 + siteid * 9, quat);
 }
 
 // Noise injection kernel

@@ -87,12 +87,20 @@ int main(int argc, char* argv[]) {
   printf("Kernel execution time: %f ms\n", milliseconds);
 
   int total_steps = nstep * batch_size;
-  double steps_per_sec = total_steps / elapsed_sec;
+  int steps_per_sec = total_steps / elapsed_sec;
   double time_per_step_us = (elapsed_sec / total_steps) * 1e6;
 
+  auto fps_string = std::to_string(steps_per_sec);
+
+  int n = fps_string.length() - 3;
+  int end = (steps_per_sec >= 0) ? 0 : 1; // Support for negative numbers
+  while (n > end) {
+    fps_string.insert(n, ",");
+    n -= 3;
+  }
   printf("Summary for CUDA simulation rollouts (%d steps, batch_size=%d)\n", total_steps, batch_size);
   printf("Total simulation time: %f s\n", elapsed_sec);
-  printf("Total steps per second: %.0f\n", steps_per_sec);
+  printf("Total steps per second: %s\n", fps_string.c_str());
   printf("Total time per step: %f µs\n", time_per_step_us);
 
   cudaProfilerStart();
