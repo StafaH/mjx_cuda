@@ -131,11 +131,11 @@ __global__ void RootKernel(
 }
 
 __global__ void LevelKernel(
-    unsigned int n,
-    unsigned int leveladr,
-    unsigned int nq,
-    unsigned int njnt,
-    unsigned int nbody,
+    const unsigned int n,
+    const unsigned int leveladr,
+    const unsigned int nq,
+    const unsigned int njnt,
+    const unsigned int nbody,
     const float* qpos0,
     const int* body_jntadr,
     const int* body_jntnum,
@@ -176,7 +176,7 @@ __global__ void LevelKernel(
 
   if (jntnum == 0) {
     int pid = __ldg(&body_parentid[bodyid]);
-    MulMatVec3(pos, xmat[body_offset + pid], body_pos[bodyid]);
+    pos = MulMatVec3(xmat[body_offset + pid], body_pos[bodyid]);
     pos += xpos[body_offset + pid];
     rot = MulQuat(xquat[body_offset + pid], body_quat[bodyid]);
   } 
@@ -190,12 +190,10 @@ __global__ void LevelKernel(
   } 
   else {
     int pid = __ldg(&body_parentid[bodyid]);
-    MulMatVec3(pos, xmat[body_offset + pid], body_pos[bodyid]);
+    pos = MulMatVec3(xmat[body_offset + pid], body_pos[bodyid]);
     pos += xpos[body_offset + pid];
     
     rot = MulQuat(xquat[body_offset + pid], body_quat[bodyid]);
-
-    // float* curr_qpos = qpos + qpos_offset;
     
     for (int j = 0; j < jntnum; j++) {
       int jid = jntadr + j;
