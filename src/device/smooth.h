@@ -12,6 +12,25 @@
 #include "io.h"
 #include "types.h"
 
+#define MAX_BODIES 32
+#define MAX_JOINTS 32
+
+extern __constant__ __device__ float cu_qpos0[MAX_BODIES * 7];
+extern __constant__ __device__ int cu_body_jntadr[MAX_BODIES];
+extern __constant__ __device__ int cu_body_jntnum[MAX_BODIES];
+extern __constant__ __device__ int cu_body_parentid[MAX_BODIES];
+extern __constant__ __device__ int cu_body_mocapid[MAX_BODIES];
+extern __constant__ __device__ vec3p cu_body_pos[MAX_BODIES];
+extern __constant__ __device__ quat cu_body_quat[MAX_BODIES];
+extern __constant__ __device__ vec3p cu_body_ipos[MAX_BODIES];
+extern __constant__ __device__ quat cu_body_iquat[MAX_BODIES];
+extern __constant__ __device__ vec3p cu_jnt_axis[MAX_JOINTS];
+extern __constant__ __device__ vec3p cu_jnt_pos[MAX_JOINTS];
+extern __constant__ __device__ int cu_jnt_type[MAX_JOINTS];
+extern __constant__ __device__ int cu_jnt_qposadr[MAX_JOINTS];
+
+void UploadConstants(const CudaModel* cm);
+
 void LaunchNoiseKernel(
     unsigned int batch_size,
     CudaModel* cm,
@@ -37,19 +56,19 @@ __global__ void LevelKernel(
     unsigned int nq,
     unsigned int njnt,
     unsigned int nbody,
-    const float* qpos0,
-    const int* body_jntadr,
-    const int* body_jntnum,
-    const int* body_parentid,
-    const int* body_mocapid,
-    const vec3p* body_pos,
-    const quat* body_quat,
-    const vec3p* body_ipos,
-    const quat* body_iquat,
-    const int* jnt_type,
-    const int* jnt_qposadr,
-    const vec3p* jnt_axis,
-    const vec3p* jnt_pos,
+    // const float* qpos0,
+    // const int* body_jntadr,
+    // const int* body_jntnum,
+    // const int* body_parentid,
+    // const int* body_mocapid,
+    // const vec3p* body_pos,
+    // const quat* body_quat,
+    // const vec3p* body_ipos,
+    // const quat* body_iquat,
+    // const int* jnt_type,
+    // const int* jnt_qposadr,
+    // const vec3p* jnt_axis,
+    // const vec3p* jnt_pos,
     const int* body_tree,
     float* qpos,
     vec3p* mocap_pos,

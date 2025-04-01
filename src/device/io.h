@@ -4,6 +4,7 @@
 #include <cuda_runtime.h>
 
 #include "types.h"
+#include "smooth.h"
 
 // Function declarations
 CudaModel* put_model(const mjModel* m);

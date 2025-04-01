@@ -1,5 +1,19 @@
 #include "smooth.h"
 
+__constant__ __device__ float cu_qpos0[MAX_BODIES * 7];
+__constant__ __device__ int cu_body_jntadr[MAX_BODIES];
+__constant__ __device__ int cu_body_jntnum[MAX_BODIES];
+__constant__ __device__ int cu_body_parentid[MAX_BODIES];
+__constant__ __device__ int cu_body_mocapid[MAX_BODIES];
+__constant__ __device__ vec3p cu_body_pos[MAX_BODIES];
+__constant__ __device__ quat cu_body_quat[MAX_BODIES];
+__constant__ __device__ vec3p cu_body_ipos[MAX_BODIES];
+__constant__ __device__ quat cu_body_iquat[MAX_BODIES];
+__constant__ __device__ vec3p cu_jnt_axis[MAX_JOINTS];
+__constant__ __device__ vec3p cu_jnt_pos[MAX_JOINTS];
+__constant__ __device__ int cu_jnt_type[MAX_JOINTS];
+__constant__ __device__ int cu_jnt_qposadr[MAX_JOINTS];
+
 void LaunchNoiseKernel(
     unsigned int batch_size,
     CudaModel* cm,
@@ -46,19 +60,19 @@ void LaunchKinematicsKernel(
         cm->nq,
         cm->njnt,
         cm->nbody,
-        cm->qpos0,
-        cm->body_jntadr,
-        cm->body_jntnum,
-        cm->body_parentid,
-        cm->body_mocapid,
-        cm->body_pos,
-        cm->body_quat,
-        cm->body_ipos,
-        cm->body_iquat,
-        cm->jnt_type,
-        cm->jnt_qposadr,
-        cm->jnt_axis,
-        cm->jnt_pos,
+        // cm->qpos0,
+        // cm->body_jntadr,
+        // cm->body_jntnum,
+        // cm->body_parentid,
+        // cm->body_mocapid,
+        // cm->body_pos,
+        // cm->body_quat,
+        // cm->body_ipos,
+        // cm->body_iquat,
+        // cm->jnt_type,
+        // cm->jnt_qposadr,
+        // cm->jnt_axis,
+        // cm->jnt_pos,
         cm->body_tree,
         cd->qpos,
         cd->mocap_pos,
@@ -136,19 +150,19 @@ __global__ void LevelKernel(
     const unsigned int nq,
     const unsigned int njnt,
     const unsigned int nbody,
-    const float* qpos0,
-    const int* body_jntadr,
-    const int* body_jntnum,
-    const int* body_parentid,
-    const int* body_mocapid,
-    const vec3p* body_pos,
-    const quat* body_quat,
-    const vec3p* body_ipos,
-    const quat* body_iquat,
-    const int* jnt_type,
-    const int* jnt_qposadr,
-    const vec3p* jnt_axis,
-    const vec3p* jnt_pos,
+    // const float* qpos0,
+    // const int* body_jntadr,
+    // const int* body_jntnum,
+    // const int* body_parentid,
+    // const int* body_mocapid,
+    // const vec3p* body_pos,
+    // const quat* body_quat,
+    // const vec3p* body_ipos,
+    // const quat* body_iquat,
+    // const int* jnt_type,
+    // const int* jnt_qposadr,
+    // const vec3p* jnt_axis,
+    // const vec3p* jnt_pos,
     const int* body_tree,
     float* qpos,
     vec3p* mocap_pos,
@@ -165,8 +179,8 @@ __global__ void LevelKernel(
 
   if (tid >= n) return;
   int bodyid = __ldg(&body_tree[leveladr + nodeid]);
-  int jntadr = __ldg(&body_jntadr[bodyid]);
-  int jntnum = __ldg(&body_jntnum[bodyid]);
+  int jntadr = __ldg(&cu_body_jntadr[bodyid]);
+  int jntnum = __ldg(&cu_body_jntnum[bodyid]);
   int qpos_offset = tid * nq;
   int body_offset = tid * nbody;
   int jnt_offset = tid * njnt;
@@ -175,38 +189,38 @@ __global__ void LevelKernel(
   quat rot = {0.0f, 0.0f, 0.0f, 0.0f};
 
   if (jntnum == 0) {
-    int pid = __ldg(&body_parentid[bodyid]);
-    pos = MulMatVec3(xmat[body_offset + pid], body_pos[bodyid]);
+    int pid = __ldg(&cu_body_parentid[bodyid]);
+    pos = MulMatVec3(xmat[body_offset + pid], cu_body_pos[bodyid]);
     pos += xpos[body_offset + pid];
-    rot = MulQuat(xquat[body_offset + pid], body_quat[bodyid]);
+    rot = MulQuat(xquat[body_offset + pid], cu_body_quat[bodyid]);
   } 
-  else if (jntnum == 1 && jnt_type[jntadr] == mjJNT_FREE) {
-    float* src = qpos + qpos_offset + __ldg(&jnt_qposadr[jntadr]);
+  else if (jntnum == 1 && cu_jnt_type[jntadr] == mjJNT_FREE) {
+    float* src = qpos + qpos_offset + __ldg(&cu_jnt_qposadr[jntadr]);
     pos = make_vec3p(src[0], src[1], src[2]);
     rot = {src[3], src[4], src[5], src[6]};
 
     xanchor[jnt_offset + jntadr] = pos;
-    xaxis[jnt_offset + jntadr] = jnt_axis[jntadr];
+    xaxis[jnt_offset + jntadr] = cu_jnt_axis[jntadr];
   } 
   else {
-    int pid = __ldg(&body_parentid[bodyid]);
-    pos = MulMatVec3(xmat[body_offset + pid], body_pos[bodyid]);
+    int pid = __ldg(&cu_body_parentid[bodyid]);
+    pos = MulMatVec3(xmat[body_offset + pid], cu_body_pos[bodyid]);
     pos += xpos[body_offset + pid];
     
-    rot = MulQuat(xquat[body_offset + pid], body_quat[bodyid]);
+    rot = MulQuat(xquat[body_offset + pid], cu_body_quat[bodyid]);
     
     for (int j = 0; j < jntnum; j++) {
       int jid = jntadr + j;
-      int qadr = jnt_qposadr[jid];
-      int jtype = jnt_type[jid];
+      int qadr = cu_jnt_qposadr[jid];
+      int jtype = cu_jnt_type[jid];
       
-      vec3p anchor = RotVecQuat(jnt_pos[jid], rot) + pos;
+      vec3p anchor = RotVecQuat(cu_jnt_pos[jid], rot) + pos;
       xanchor[jnt_offset + jid] = anchor;
-      xaxis[jnt_offset + jid] = RotVecQuat(jnt_axis[jid], rot);
+      xaxis[jnt_offset + jid] = RotVecQuat(cu_jnt_axis[jid], rot);
 
       switch (jtype) {
         case mjJNT_SLIDE: {
-          pos += xaxis[jnt_offset + jid] * (qpos[qpos_offset + qadr] - qpos0[qadr]);
+          pos += xaxis[jnt_offset + jid] * (qpos[qpos_offset + qadr] - cu_qpos0[qadr]);
           break;
         }
 
@@ -216,20 +230,20 @@ __global__ void LevelKernel(
                        qpos[qpos_offset + qadr + 2],
                        qpos[qpos_offset + qadr + 3]};
           rot = MulQuat(rot, qloc);
-          pos = anchor - RotVecQuat(jnt_pos[jid], rot);
+          pos = anchor - RotVecQuat(cu_jnt_pos[jid], rot);
           break;
         }
 
         case mjJNT_HINGE: {
-          float angle = qpos[qpos_offset + qadr] - qpos0[qadr];
+          float angle = qpos[qpos_offset + qadr] - cu_qpos0[qadr];
           float s, c;
           __sincosf(0.5f * angle, &s, &c);
           quat qloc = {c,
-                       jnt_axis[jid].x * s,
-                       jnt_axis[jid].y * s,
-                       jnt_axis[jid].z * s};
+                       cu_jnt_axis[jid].x * s,
+                       cu_jnt_axis[jid].y * s,
+                       cu_jnt_axis[jid].z * s};
           rot = MulQuat(rot, qloc);
-          pos = anchor - RotVecQuat(jnt_pos[jid], rot);
+          pos = anchor - RotVecQuat(cu_jnt_pos[jid], rot);
           break;
         }
       }
@@ -242,10 +256,10 @@ __global__ void LevelKernel(
 
   Quat2Mat(xmat[body_offset + bodyid], rot);
 
-  vec3p local_ipos = RotVecQuat(body_ipos[bodyid], rot);
+  vec3p local_ipos = RotVecQuat(cu_body_ipos[bodyid], rot);
   xipos[body_offset + bodyid] = local_ipos + pos;
 
-  quat temp_iquat = MulQuat(rot, body_iquat[bodyid]);
+  quat temp_iquat = MulQuat(rot, cu_body_iquat[bodyid]);
   Quat2Mat(ximat[body_offset + bodyid], temp_iquat);
 }
 

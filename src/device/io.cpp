@@ -195,6 +195,21 @@ CudaModel* put_model(const mjModel* m) {
     cudaMemcpy(cm->site_pos, site_pos.data(), m->nsite * sizeof(vec3p), cudaMemcpyHostToDevice);
     cudaMemcpy(cm->site_quat, site_quat.data(), m->nsite * sizeof(quat), cudaMemcpyHostToDevice);
     
+    cudaDeviceSynchronize();
+    cudaMemcpyToSymbol(cu_qpos0, qpos0_float.data(), m->nq * sizeof(float));
+    cudaMemcpyToSymbol(cu_body_jntadr, m->body_jntadr, cm->njnt * sizeof(int));
+    cudaMemcpyToSymbol(cu_body_jntnum, m->body_jntnum, cm->njnt * sizeof(int));
+    cudaMemcpyToSymbol(cu_body_parentid, m->body_parentid, cm->nbody * sizeof(int));
+    cudaMemcpyToSymbol(cu_body_mocapid, m->body_mocapid, cm->nbody * sizeof(int));
+    cudaMemcpyToSymbol(cu_body_pos, body_pos.data(), cm->nbody * sizeof(vec3p));
+    cudaMemcpyToSymbol(cu_body_quat, body_quat.data(), cm->nbody * sizeof(quat));
+    cudaMemcpyToSymbol(cu_body_ipos, body_ipos.data(), cm->nbody * sizeof(vec3p));
+    cudaMemcpyToSymbol(cu_body_iquat, body_iquat.data(), cm->nbody * sizeof(quat));
+    cudaMemcpyToSymbol(cu_jnt_type, m->jnt_type, cm->njnt * sizeof(int));
+    cudaMemcpyToSymbol(cu_jnt_qposadr, m->jnt_qposadr, cm->njnt * sizeof(int));
+    cudaMemcpyToSymbol(cu_jnt_axis, jnt_axis.data(), cm->njnt * sizeof(vec3p));
+    cudaMemcpyToSymbol(cu_jnt_pos, jnt_pos.data(), cm->njnt * sizeof(vec3p));
+    cudaDeviceSynchronize();
     return cm;
 }
 
@@ -413,4 +428,4 @@ void free_cuda_data(CudaData* cd) {
   if (cd) {
     delete cd;
   }
-} 
+}
