@@ -65,6 +65,8 @@ int main(int argc, char* argv[]) {
 
   cudaGraphLaunch(graphExec, stream);
   cudaStreamSynchronize(stream);
+  cudaGraphLaunch(graphExec, stream);
+  cudaStreamSynchronize(stream);
 
   printf("Warmup run completed\n");
   

@@ -61,8 +61,6 @@ void LaunchKinematicsKernel(
         cm->jnt_pos,
         cm->body_tree,
         cd->qpos,
-        cd->mocap_pos,
-        cd->mocap_quat,
         cd->xanchor,
         cd->xaxis,
         cd->xmat,
@@ -151,8 +149,6 @@ __global__ void LevelKernel(
     const vec3p* jnt_pos,
     const int* body_tree,
     float* qpos,
-    vec3p* mocap_pos,
-    quat* mocap_quat,
     vec3p* xanchor,
     vec3p* xaxis,
     mat3p* xmat,
@@ -160,16 +156,16 @@ __global__ void LevelKernel(
     quat* xquat,
     vec3p* xipos,
     mat3p* ximat) {
-  unsigned int tid = blockIdx.x * blockDim.x + threadIdx.x;
-  unsigned int nodeid = blockIdx.y;
+  const unsigned int tid = blockIdx.x * blockDim.x + threadIdx.x;
+  const unsigned int nodeid = blockIdx.y;
 
   if (tid >= n) return;
-  int bodyid = __ldg(&body_tree[leveladr + nodeid]);
-  int jntadr = __ldg(&body_jntadr[bodyid]);
-  int jntnum = __ldg(&body_jntnum[bodyid]);
-  int qpos_offset = tid * nq;
-  int body_offset = tid * nbody;
-  int jnt_offset = tid * njnt;
+  const int bodyid = __ldg(&body_tree[leveladr + nodeid]);
+  const int jntadr = __ldg(&body_jntadr[bodyid]);
+  const int jntnum = __ldg(&body_jntnum[bodyid]);
+  const int qpos_offset = tid * nq;
+  const int body_offset = tid * nbody;
+  const int jnt_offset = tid * njnt;
 
   vec3p pos = {0.0f, 0.0f, 0.0f, 0.0f};
   quat rot = {0.0f, 0.0f, 0.0f, 0.0f};
@@ -240,19 +236,19 @@ __global__ void LevelKernel(
   xpos[body_offset + bodyid] = pos;
   xquat[body_offset + bodyid] = rot;
 
-  Quat2Mat(xmat[body_offset + bodyid], rot);
+  xmat[body_offset + bodyid] = Quat2Mat(rot);
 
   vec3p local_ipos = RotVecQuat(body_ipos[bodyid], rot);
   xipos[body_offset + bodyid] = local_ipos + pos;
 
   quat temp_iquat = MulQuat(rot, body_iquat[bodyid]);
-  Quat2Mat(ximat[body_offset + bodyid], temp_iquat);
+  ximat[body_offset + bodyid] = Quat2Mat(temp_iquat);
 }
 
 __global__ void GeomLocalToGlobalKernel(
-    unsigned int n,
-    unsigned int nbody,
-    unsigned int ngeom,
+    const unsigned int n,
+    const unsigned int nbody,
+    const unsigned int ngeom,
     const int* geom_bodyid,
     const vec3p* geom_pos,
     const quat* geom_quat,
@@ -264,24 +260,19 @@ __global__ void GeomLocalToGlobalKernel(
   unsigned int geomid = blockIdx.y;
   if (tid >= n) return;
 
-  const int bodyid = __ldg(&geom_bodyid[geomid]);
-  const unsigned int body_offset = tid * nbody + bodyid;
+  const unsigned int body_offset = tid * nbody + geom_bodyid[geomid];
   const unsigned int geom_offset = tid * ngeom + geomid;
 
   const quat qparent = xquat[body_offset];
-  const vec3p pparent = xpos[body_offset];
-
-  vec3p rotated_pos = RotVecQuat(geom_pos[geomid], qparent);
-  geom_xpos[geom_offset] = pparent + rotated_pos;
-
+  geom_xpos[geom_offset] = xpos[body_offset] + RotVecQuat(geom_pos[geomid], qparent);
   quat qres = MulQuat(qparent, geom_quat[geomid]);
-  Quat2Mat(geom_xmat[geom_offset], qres);
+  geom_xmat[geom_offset] = Quat2Mat(qres);
 }
 
 __global__ void SiteLocalToGlobalKernel(
-    unsigned int n,
-    unsigned int nbody,
-    unsigned int nsite,
+    const unsigned int n,
+    const unsigned int nbody,
+    const unsigned int nsite,
     const int* site_bodyid,
     const vec3p* site_pos,
     const quat* site_quat,
@@ -293,18 +284,13 @@ __global__ void SiteLocalToGlobalKernel(
   unsigned int siteid = blockIdx.y;
   if (tid >= n) return;
 
-  const int bodyid = __ldg(&site_bodyid[siteid]);
-  const unsigned int body_offset = tid * nbody + bodyid;
+  const unsigned int body_offset = tid * nbody + site_bodyid[siteid];
   const unsigned int site_offset = tid * nsite + siteid;
 
   const quat qparent = xquat[body_offset];
-  const vec3p pparent = xpos[body_offset];
-
-  vec3p rotated_pos = RotVecQuat(site_pos[siteid], qparent);
-  site_xpos[site_offset] = pparent + rotated_pos;
-
+  site_xpos[site_offset] = xpos[body_offset] + RotVecQuat(site_pos[siteid], qparent);
   quat qres = MulQuat(qparent, site_quat[siteid]);
-  Quat2Mat(site_xmat[site_offset], qres);
+  site_xmat[site_offset] = Quat2Mat(qres);
 }
 
 // Noise injection kernel

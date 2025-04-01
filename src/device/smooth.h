@@ -52,8 +52,6 @@ __global__ void LevelKernel(
     const vec3p* jnt_pos,
     const int* body_tree,
     float* qpos,
-    vec3p* mocap_pos,
-    quat* mocap_quat,
     vec3p* xanchor,
     vec3p* xaxis,
     mat3p* xmat,
