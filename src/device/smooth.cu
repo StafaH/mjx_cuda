@@ -40,7 +40,11 @@ void LaunchKinematicsKernel(
 
     dim3 gridDim(batchBlocks, numBodiesInLevel);
     
-    LevelKernel<<<gridDim, threadsPerBlock, 0, stream>>>(
+    size_t shmem_size =
+      cm->nbody * (sizeof(vec3p) + sizeof(quat) + sizeof(vec3p) + sizeof(quat)) +
+      cm->njnt * (sizeof(vec3p) + sizeof(vec3p));
+
+    LevelKernel<<<gridDim, threadsPerBlock, shmem_size, stream>>>(
         batch_size,
         beg,
         cm->nq,
@@ -171,14 +175,46 @@ __global__ void LevelKernel(
   int body_offset = tid * nbody;
   int jnt_offset = tid * njnt;
 
+  extern __shared__ char smem[];
+  vec3p* s_body_pos   = reinterpret_cast<vec3p*>(smem);
+  quat* s_body_quat  = reinterpret_cast<quat*>(s_body_pos + nbody);
+  vec3p* s_body_ipos  = reinterpret_cast<vec3p*>(s_body_quat + nbody);
+  quat* s_body_iquat = reinterpret_cast<quat*>(s_body_ipos + nbody);
+  vec3p* s_jnt_pos    = reinterpret_cast<vec3p*>(s_body_iquat + nbody);
+  vec3p* s_jnt_axis   = reinterpret_cast<vec3p*>(s_jnt_pos + njnt);
+
+  // if (threadIdx.x == 0) {
+  //   for (int i = 0; i < nbody; i++) {
+  //     s_body_pos[i]   = body_pos[i];
+  //     s_body_quat[i]  = body_quat[i];
+  //     s_body_ipos[i]  = body_ipos[i];
+  //     s_body_iquat[i] = body_iquat[i];
+  //   }
+  //   for (int i = 0; i < njnt; i++) {
+  //     s_jnt_pos[i]   = jnt_pos[i];
+  //     s_jnt_axis[i]  = jnt_axis[i];
+  //   }
+  // }
+  if (threadIdx.x < nbody) {
+    s_body_pos[threadIdx.x]   = body_pos[threadIdx.x];
+    s_body_quat[threadIdx.x]  = body_quat[threadIdx.x];
+    s_body_ipos[threadIdx.x]  = body_ipos[threadIdx.x];
+    s_body_iquat[threadIdx.x] = body_iquat[threadIdx.x];
+  }
+  if (threadIdx.x < njnt) {
+    s_jnt_pos[threadIdx.x]   = jnt_pos[threadIdx.x];
+    s_jnt_axis[threadIdx.x]  = jnt_axis[threadIdx.x];
+  }
+  __syncthreads();
+
   vec3p pos = {0.0f, 0.0f, 0.0f, 0.0f};
   quat rot = {0.0f, 0.0f, 0.0f, 0.0f};
 
   if (jntnum == 0) {
     int pid = __ldg(&body_parentid[bodyid]);
-    pos = MulMatVec3(xmat[body_offset + pid], body_pos[bodyid]);
+    pos = MulMatVec3(xmat[body_offset + pid], s_body_pos[bodyid]);
     pos += xpos[body_offset + pid];
-    rot = MulQuat(xquat[body_offset + pid], body_quat[bodyid]);
+    rot = MulQuat(xquat[body_offset + pid], s_body_quat[bodyid]);
   } 
   else if (jntnum == 1 && jnt_type[jntadr] == mjJNT_FREE) {
     float* src = qpos + qpos_offset + __ldg(&jnt_qposadr[jntadr]);
@@ -186,23 +222,23 @@ __global__ void LevelKernel(
     rot = {src[3], src[4], src[5], src[6]};
 
     xanchor[jnt_offset + jntadr] = pos;
-    xaxis[jnt_offset + jntadr] = jnt_axis[jntadr];
+    xaxis[jnt_offset + jntadr] = s_jnt_axis[jntadr];
   } 
   else {
     int pid = __ldg(&body_parentid[bodyid]);
-    pos = MulMatVec3(xmat[body_offset + pid], body_pos[bodyid]);
+    pos = MulMatVec3(xmat[body_offset + pid], s_body_pos[bodyid]);
     pos += xpos[body_offset + pid];
     
-    rot = MulQuat(xquat[body_offset + pid], body_quat[bodyid]);
+    rot = MulQuat(xquat[body_offset + pid], s_body_quat[bodyid]);
     
     for (int j = 0; j < jntnum; j++) {
       int jid = jntadr + j;
       int qadr = jnt_qposadr[jid];
       int jtype = jnt_type[jid];
       
-      vec3p anchor = RotVecQuat(jnt_pos[jid], rot) + pos;
+      vec3p anchor = RotVecQuat(s_jnt_pos[jid], rot) + pos;
       xanchor[jnt_offset + jid] = anchor;
-      xaxis[jnt_offset + jid] = RotVecQuat(jnt_axis[jid], rot);
+      xaxis[jnt_offset + jid] = RotVecQuat(s_jnt_axis[jid], rot);
 
       switch (jtype) {
         case mjJNT_SLIDE: {
@@ -216,7 +252,7 @@ __global__ void LevelKernel(
                        qpos[qpos_offset + qadr + 2],
                        qpos[qpos_offset + qadr + 3]};
           rot = MulQuat(rot, qloc);
-          pos = anchor - RotVecQuat(jnt_pos[jid], rot);
+          pos = anchor - RotVecQuat(s_jnt_pos[jid], rot);
           break;
         }
 
@@ -225,11 +261,11 @@ __global__ void LevelKernel(
           float s, c;
           __sincosf(0.5f * angle, &s, &c);
           quat qloc = {c,
-                       jnt_axis[jid].x * s,
-                       jnt_axis[jid].y * s,
-                       jnt_axis[jid].z * s};
+                       s_jnt_axis[jid].x * s,
+                       s_jnt_axis[jid].y * s,
+                       s_jnt_axis[jid].z * s};
           rot = MulQuat(rot, qloc);
-          pos = anchor - RotVecQuat(jnt_pos[jid], rot);
+          pos = anchor - RotVecQuat(s_jnt_pos[jid], rot);
           break;
         }
       }
@@ -242,10 +278,10 @@ __global__ void LevelKernel(
 
   Quat2Mat(xmat[body_offset + bodyid], rot);
 
-  vec3p local_ipos = RotVecQuat(body_ipos[bodyid], rot);
+  vec3p local_ipos = RotVecQuat(s_body_ipos[bodyid], rot);
   xipos[body_offset + bodyid] = local_ipos + pos;
 
-  quat temp_iquat = MulQuat(rot, body_iquat[bodyid]);
+  quat temp_iquat = MulQuat(rot, s_body_iquat[bodyid]);
   Quat2Mat(ximat[body_offset + bodyid], temp_iquat);
 }
 
